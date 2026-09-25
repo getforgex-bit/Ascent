@@ -1,0 +1,132 @@
+<title>FORGEX DOOM Orbital</title>
+<meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=IBM+Plex+Mono:wght@400;600;700&display=swap">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #07060d;
+    --panel: #15122a;
+    --line: #2d2750;
+    --text: #e6e2f5;
+    --muted: #9690b8;
+    --blood: #e0452f;
+    --cyan: #5ff2e6;
+    --acid: #7dff4a;
+  }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 14px/1.5 "IBM Plex Mono", ui-monospace, Consolas, monospace;
+    padding-inline: 16px; padding-block: 20px; box-sizing: border-box;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; display: grid; gap: 14px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+  h1 { font: 700 clamp(24px, 5.5vw, 42px) "Silkscreen", "IBM Plex Mono", monospace; margin: 0; letter-spacing: .04em; color: var(--blood); text-shadow: 0 3px 0 #4a0f1e; }
+  h1 span { color: var(--cyan); text-shadow: 0 3px 0 #0d3b44; }
+  .sub { color: var(--muted); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+  .screen { position: relative; border: 2px solid var(--line); background: #000; box-shadow: 0 0 40px rgba(95, 242, 230, .08); }
+  canvas#view { display: block; width: 100%; max-width: 100%; aspect-ratio: 960 / 600; cursor: crosshair; }
+  .guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px 28px; }
+  .guide h2 { font: 700 13px "Silkscreen", monospace; letter-spacing: .08em; color: var(--cyan); margin: 0 0 6px; }
+  .guide ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 13px; display: grid; gap: 3px; }
+  .guide b { color: var(--text); font-weight: 600; }
+  .touch { display: none; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+  .touch .pad { display: grid; grid-template-columns: repeat(3, 52px); gap: 6px; }
+  .touch .acts { display: grid; grid-template-columns: repeat(3, 84px); gap: 6px; }
+  .touch button { height: 48px; border: 2px solid var(--line); background: var(--panel); color: var(--text); font: 700 13px "Silkscreen", monospace; border-radius: 6px; touch-action: none; user-select: none; }
+  .touch .fire { background: var(--blood); border-color: #7a1a10; color: #fff; }
+  .touch .shield { background: #134a52; border-color: #1f7f86; }
+  button:focus-visible, canvas:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .pausebtn { font: 700 14px "Silkscreen", monospace; letter-spacing: .06em; color: var(--text); background: var(--panel); border: 2px solid var(--line); border-radius: 6px; padding: 8px 16px; cursor: pointer; }
+  .pausebtn:hover { border-color: var(--cyan); color: var(--cyan); }
+  .pausebtn[aria-pressed="true"] { background: #134a52; border-color: var(--cyan); color: #fff; }
+  .hint { color: var(--muted); font-size: 12px; }
+  .settings { border: 2px solid var(--line); border-radius: 6px; background: var(--panel); padding-inline: 14px; padding-block: 8px; }
+  .settings summary { cursor: pointer; font: 700 13px "Silkscreen", monospace; letter-spacing: .06em; color: var(--cyan); }
+  .spre { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 16px; margin-block: 10px 4px; }
+  .spre label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+  .sbody { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px 14px; margin-block: 8px; }
+  .sbody fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 0; padding: 6px 10px 10px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+  .sbody legend { font: 700 11px "Silkscreen", monospace; letter-spacing: .06em; color: var(--cyan); padding-inline: 4px; }
+  .sbody label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+  .sbody label.chk { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 8px; color: var(--text); }
+  .sbody label.chk input { margin: 0; }
+  .sbody label.chk small { grid-column: 2; }
+  .sbody small.req { color: #8a84a8; font-size: 11px; }
+  .sbody small.req:empty { display: none; }
+  .settings select { font: 13px "IBM Plex Mono", monospace; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 5px; max-width: 100%; }
+  .settings select:disabled, .settings input:disabled { opacity: .45; }
+  .mini { font: 600 12px "IBM Plex Mono", monospace; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+  .mini:hover { border-color: var(--cyan); color: var(--cyan); }
+  .hint.strong { color: var(--text); }
+  @media (pointer: coarse) { .touch { display: flex; } .hint { display: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>FORGEX DOOM <span>ORBITAL</span></h1>
+    <span class="sub">Supervivencia vertical · ascenso infinito</span>
+  </header>
+  <div class="screen">
+    <canvas id="gpu-view" width="960" height="600" style="position:absolute;inset:0;width:100%;height:100%;display:none;z-index:0"></canvas>
+    <canvas id="view" width="960" height="600" tabindex="0" aria-label="Pantalla del juego" style="position:relative;z-index:1"></canvas>
+  </div>
+  <div class="bar"><button id="pause-btn" class="pausebtn" type="button">❚❚ Pausa (P)</button><button id="quality-btn" class="pausebtn" type="button">Calidad: MEDIA (G)</button><span class="hint">Esc también pausa al soltar el mouse</span></div>
+  <details class="settings" id="settings">
+    <summary>Ajustes gráficos y de rendimiento</summary>
+    <div class="spre">
+      <label>Preset <select id="s-pre"></select></label>
+      <button id="s-reset" class="mini" type="button">Valores por defecto</button>
+    </div>
+    <p id="s-engine" class="hint strong"></p>
+    <div id="s-body" class="sbody"></div>
+    <p id="s-caps" class="hint"></p>
+    <p id="s-sync" class="hint"></p>
+    <p class="hint">Ninguna opción cambia la jugabilidad: solo cómo se dibuja y cómo se reparte el trabajo. Los FPS en pantalla nunca pasan de la frecuencia de tu monitor; activa «Mostrar rendimiento» para ver cuánto tarda cada fotograma, qué lo limita y los FPS posibles.</p>
+  </details>
+  <div class="touch" aria-label="Controles táctiles">
+    <div class="pad">
+      <span></span><button data-k="KeyW">▲</button><span></span>
+      <button data-k="ArrowLeft">◀</button><button data-k="KeyS">▼</button><button data-k="ArrowRight">▶</button>
+    </div>
+    <div class="acts">
+      <button id="t-jump">SALTO</button><button class="fire" id="t-fire">FUEGO</button><button class="shield" id="t-shield">ESCUDO</button>
+      <button id="t-use">USAR</button><button id="t-drop">SOLTAR</button><button id="t-next">SIG.</button><button id="t-pause">PAUSA</button>
+    </div>
+  </div>
+  <section class="guide">
+    <div>
+      <h2>Controles</h2>
+      <ul>
+        <li><b>Clic</b> captura el mouse · <b>mantener clic</b> dispara</li>
+        <li><b>W A S D</b> moverse · <b>Espacio</b> saltar (doble salto)</li>
+        <li><b>Mouse</b> o <b>flechas</b> mirar a los lados y hasta el cielo o el suelo bajo tus pies · <b>C</b> centrar la vista</li>
+        <li><b>Clic derecho</b> o <b>Shift</b> activa el escudo</li>
+        <li><b>E</b> recoger o abrir · <b>Q</b> soltar el objeto elegido</li>
+        <li><b>1–6</b> o rueda elegir espacio (elegir un arma la equipa)</li>
+        <li><b>L</b> linterna · <b>G</b> resolución · <b>T</b> trazado de rayos · <b>M</b> silenciar · <b>R</b> reintentar tras morir</li>
+      </ul>
+    </div>
+    <div>
+      <h2>Reglas de supervivencia</h2>
+      <ul>
+        <li>Tu progreso es la <b>altura</b>. La ruta central sube sin fin.</li>
+        <li>Quédate <b>quieto</b> para pasar reserva a tu vida, cada vez más lento (0.1 s, 0.2, 0.3, 0.5, 0.8, 1.3, 2.1…). Hasta 1.3 s cada intervalo da 1 punto; desde 2.1 s da 6 puntos. El ritmo vuelve a ser rápido tras acumular <b>15 s sin regenerar</b> (ese contador se pausa mientras te curas).</li>
+        <li>Caer al vacío: <b>−20 de vida</b>, vuelves al último punto seguro y la curación se <b>bloquea 33 s</b>.</li>
+        <li><b>6 espacios</b>: arma 2, caja de munición 1 (32 de un tipo), cada bala suelta 1.</li>
+        <li>El <b>escudo</b> dura 0.6 s y recarga en 60 s. Actívalo justo al impacto.</li>
+        <li>En las ramas hay <b>masmorras</b> (laberintos de pasillos con salas), <b>megamasmorras</b> (enormes, con secciones y muchas estructuras conectadas) y <b>estructuras</b> (edificios con zonas propias).</li>
+        <li>En el borde del mapa, rara vez, aparecen las <b>Farlands</b>: tres megamasmorras encadenadas más allá del límite. Más lejos hay una pared invisible.</li>
+        <li><b>Ramas laterales</b>: no suben tu marca. Cuanto más lejos del eje, más probable encontrar algo, pero nunca es seguro. Hay zonas casi vacías.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+/*@@SCRIPT@@*/
+})();
+</script>

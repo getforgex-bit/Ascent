@@ -1,0 +1,15 @@
+[package]
+name = "forgex_gfx"
+version = "0.2.0"
+edition = "2021"
+description = "Motor gráfico de FORGEX DOOM Orbital: raycaster, iluminación diferida por tiles y sombras con trazado de rayos por software (WebAssembly)."
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
+panic = "abort"
+lto = true
+codegen-units = 1

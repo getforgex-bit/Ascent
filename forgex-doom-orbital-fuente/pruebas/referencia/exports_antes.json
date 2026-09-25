@@ -1,0 +1,544 @@
+{
+  "forgex_gfx": [
+    {
+      "name": "atlas_max",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "bloom_down",
+      "kind": "func",
+      "sig": "(i32, i32, i32, i32) -> ()"
+    },
+    {
+      "name": "dims",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "get_gfx_cfg",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "get_perf_cfg",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "light_pass",
+      "kind": "func",
+      "sig": "(i32, i32, i32, i32, i32, i32, i32, i32, f32) -> (i32)"
+    },
+    {
+      "name": "memory",
+      "kind": "memory"
+    },
+    {
+      "name": "p_amb",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_atlas",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_bl",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_buf",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_cz",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_depth",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_gbuf",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_gds",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_head",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_lights",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_nrm",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_out",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_ptc",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_ptx",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_pty",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_ptz",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_rim",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_rimg",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_shad",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_sky",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_spr",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_texem",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_texgl",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_texlv",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "particle_pass",
+      "kind": "func",
+      "sig": "(i32, f32, f32, f32, f32, f32, f32, f32, f32, f32, i32, i32) -> ()"
+    },
+    {
+      "name": "prof_drain",
+      "kind": "func",
+      "sig": "(i32, i32) -> (i32)"
+    },
+    {
+      "name": "pt_max",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "render",
+      "kind": "func",
+      "sig": "(f32, f32, f32, f32, f32, f32, f32, f32, f32, i32, i32, i32, f32, f32, i32, i32) -> ()"
+    },
+    {
+      "name": "render3d",
+      "kind": "func",
+      "sig": "(f32, f32, f32, f32, f32, f32, f32, f32, f32, f32, f32, i32, i32, i32, f32, f32, i32, i32) -> ()"
+    },
+    {
+      "name": "set_consts",
+      "kind": "func",
+      "sig": "(i32, i32) -> ()"
+    },
+    {
+      "name": "set_gfx_cfg",
+      "kind": "func",
+      "sig": "(i32) -> ()"
+    },
+    {
+      "name": "set_perf_cfg",
+      "kind": "func",
+      "sig": "(i32) -> ()"
+    },
+    {
+      "name": "set_res",
+      "kind": "func",
+      "sig": "(i32, i32) -> ()"
+    },
+    {
+      "name": "size_of_gfx_cfg",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "size_of_perf_cfg",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "sky_dims",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "spr_max",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "sprite_pass",
+      "kind": "func",
+      "sig": "(i32, i32, i32) -> ()"
+    },
+    {
+      "name": "test_prof_record",
+      "kind": "func",
+      "sig": "(i32, f32) -> ()"
+    },
+    {
+      "name": "w_add",
+      "kind": "func",
+      "sig": "(i32, i32, f32, f32, i32, i32, f32, f32, f32, f32, i32, i32) -> (i32)"
+    },
+    {
+      "name": "w_dirty",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "w_live",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "w_prune",
+      "kind": "func",
+      "sig": "(f32) -> ()"
+    },
+    {
+      "name": "w_reset",
+      "kind": "func",
+      "sig": "() -> ()"
+    },
+    {
+      "name": "w_set_acid",
+      "kind": "func",
+      "sig": "(i32, i32, f32) -> ()"
+    },
+    {
+      "name": "w_used",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "w_zrange",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    }
+  ],
+  "forgex_gfx_scalar": [
+    {
+      "name": "atlas_max",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "bloom_down",
+      "kind": "func",
+      "sig": "(i32, i32, i32, i32) -> ()"
+    },
+    {
+      "name": "dims",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "get_gfx_cfg",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "get_perf_cfg",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "light_pass",
+      "kind": "func",
+      "sig": "(i32, i32, i32, i32, i32, i32, i32, i32, f32) -> (i32)"
+    },
+    {
+      "name": "memory",
+      "kind": "memory"
+    },
+    {
+      "name": "p_amb",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_atlas",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_bl",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_buf",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_cz",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_depth",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_gbuf",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_gds",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_head",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_lights",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_nrm",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_out",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_ptc",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_ptx",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_pty",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_ptz",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_rim",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_rimg",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_shad",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_sky",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_spr",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_texem",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_texgl",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "p_texlv",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "particle_pass",
+      "kind": "func",
+      "sig": "(i32, f32, f32, f32, f32, f32, f32, f32, f32, f32, i32, i32) -> ()"
+    },
+    {
+      "name": "prof_drain",
+      "kind": "func",
+      "sig": "(i32, i32) -> (i32)"
+    },
+    {
+      "name": "pt_max",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "render",
+      "kind": "func",
+      "sig": "(f32, f32, f32, f32, f32, f32, f32, f32, f32, i32, i32, i32, f32, f32, i32, i32) -> ()"
+    },
+    {
+      "name": "render3d",
+      "kind": "func",
+      "sig": "(f32, f32, f32, f32, f32, f32, f32, f32, f32, f32, f32, i32, i32, i32, f32, f32, i32, i32) -> ()"
+    },
+    {
+      "name": "set_consts",
+      "kind": "func",
+      "sig": "(i32, i32) -> ()"
+    },
+    {
+      "name": "set_gfx_cfg",
+      "kind": "func",
+      "sig": "(i32) -> ()"
+    },
+    {
+      "name": "set_perf_cfg",
+      "kind": "func",
+      "sig": "(i32) -> ()"
+    },
+    {
+      "name": "set_res",
+      "kind": "func",
+      "sig": "(i32, i32) -> ()"
+    },
+    {
+      "name": "size_of_gfx_cfg",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "size_of_perf_cfg",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "sky_dims",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "spr_max",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "sprite_pass",
+      "kind": "func",
+      "sig": "(i32, i32, i32) -> ()"
+    },
+    {
+      "name": "test_prof_record",
+      "kind": "func",
+      "sig": "(i32, f32) -> ()"
+    },
+    {
+      "name": "w_add",
+      "kind": "func",
+      "sig": "(i32, i32, f32, f32, i32, i32, f32, f32, f32, f32, i32, i32) -> (i32)"
+    },
+    {
+      "name": "w_dirty",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "w_live",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "w_prune",
+      "kind": "func",
+      "sig": "(f32) -> ()"
+    },
+    {
+      "name": "w_reset",
+      "kind": "func",
+      "sig": "() -> ()"
+    },
+    {
+      "name": "w_set_acid",
+      "kind": "func",
+      "sig": "(i32, i32, f32) -> ()"
+    },
+    {
+      "name": "w_used",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    },
+    {
+      "name": "w_zrange",
+      "kind": "func",
+      "sig": "() -> (i32)"
+    }
+  ]
+}

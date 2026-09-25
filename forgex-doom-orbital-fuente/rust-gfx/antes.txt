@@ -1,0 +1,67 @@
+Sections:
+  sec_1: 163 bytes
+  sec_3: 59 bytes
+  sec_5: 4 bytes
+  sec_6: 9 bytes
+  sec_7: 572 bytes
+  sec_10: 33007 bytes
+  sec_11: 723 bytes
+  custom:name: 845 bytes
+  custom:producers: 77 bytes
+  custom:target_features: 157 bytes
+
+Exports (54):
+  atlas_max: () -> (i32)
+  bloom_down: (i32, i32, i32, i32) -> ()
+  dims: () -> (i32)
+  get_gfx_cfg: () -> (i32)
+  get_perf_cfg: () -> (i32)
+  light_pass: (i32, i32, i32, i32, i32, i32, i32, i32, f32) -> (i32)
+  memory: memory
+  p_amb: () -> (i32)
+  p_atlas: () -> (i32)
+  p_bl: () -> (i32)
+  p_buf: () -> (i32)
+  p_cz: () -> (i32)
+  p_depth: () -> (i32)
+  p_gbuf: () -> (i32)
+  p_gds: () -> (i32)
+  p_head: () -> (i32)
+  p_lights: () -> (i32)
+  p_nrm: () -> (i32)
+  p_out: () -> (i32)
+  p_ptc: () -> (i32)
+  p_ptx: () -> (i32)
+  p_pty: () -> (i32)
+  p_ptz: () -> (i32)
+  p_rim: () -> (i32)
+  p_rimg: () -> (i32)
+  p_shad: () -> (i32)
+  p_sky: () -> (i32)
+  p_spr: () -> (i32)
+  p_texem: () -> (i32)
+  p_texgl: () -> (i32)
+  p_texlv: () -> (i32)
+  particle_pass: (i32, f32, f32, f32, f32, f32, f32, f32, f32, f32, i32, i32) -> ()
+  prof_drain: (i32, i32) -> (i32)
+  pt_max: () -> (i32)
+  render: (f32, f32, f32, f32, f32, f32, f32, f32, f32, i32, i32, i32, f32, f32, i32, i32) -> ()
+  render3d: (f32, f32, f32, f32, f32, f32, f32, f32, f32, f32, f32, i32, i32, i32, f32, f32, i32, i32) -> ()
+  set_consts: (i32, i32) -> ()
+  set_gfx_cfg: (i32) -> ()
+  set_perf_cfg: (i32) -> ()
+  set_res: (i32, i32) -> ()
+  size_of_gfx_cfg: () -> (i32)
+  size_of_perf_cfg: () -> (i32)
+  sky_dims: () -> (i32)
+  spr_max: () -> (i32)
+  sprite_pass: (i32, i32, i32) -> ()
+  test_prof_record: (i32, f32) -> ()
+  w_add: (i32, i32, f32, f32, i32, i32, f32, f32, f32, f32, i32, i32) -> (i32)
+  w_dirty: () -> (i32)
+  w_live: () -> (i32)
+  w_prune: (f32) -> ()
+  w_reset: () -> ()
+  w_set_acid: (i32, i32, f32) -> ()
+  w_used: () -> (i32)
+  w_zrange: () -> (i32)

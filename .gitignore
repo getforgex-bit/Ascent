@@ -1,0 +1,9 @@
+# Rust build artifacts
+/forgex-doom-orbital-fuente/rust-gfx/target/
+**/*.rcgu.o
+**/*.rlib
+**/*.rmeta
+
+# Python cache
+__pycache__/
+*.pyc
