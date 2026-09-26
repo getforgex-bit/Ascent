@@ -215,13 +215,10 @@ fs.mkdirSync(SALIDA, { recursive: true });
   // ESCENARIO 5: Curarse al estar quieto: reserve baja, hp sube
   // ----------------------------------------------------
   console.log('\n--- Escenario 5: Curación en reposo ---');
+  // En la pasarela: dentro de una estructura, los enemigos (que sí atacan) pueden hacer daño mientras se cura.
   await page.evaluate(() => {
     const d = window.__doom;
-    const ship = d.ships[0];
-    const x = ship ? ship.x0 + 2 : 266.5;
-    const y = ship ? ship.y0 + 2 : 266.5;
-    const z = ship ? ship.zf : 0;
-    d.tp(x, y, z, 0);
+    window.__lane();
     d.st.hp = 80;
     d.st.reserve = 30;
     d.st.healLock = 0;
