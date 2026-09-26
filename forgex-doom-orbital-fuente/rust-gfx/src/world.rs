@@ -4,7 +4,7 @@
 use core::arch::wasm32::{f32_floor, f32_sqrt};
 use crate::contracts::*;
 use crate::pool::Pool;
-use crate::chunk::{chunk_id_f32, chunk_of_block};
+use crate::chunk::chunk_id_f32;
 
 #[inline(always)]
 fn fabs(x: f32) -> f32 { if x < 0.0 { -x } else { x } }
@@ -70,9 +70,9 @@ pub unsafe extern "C" fn w_reset() {
 }
 
 #[inline(always)]
-pub(crate) unsafe fn free_block(n: u32, ci: usize) {
+pub(crate) unsafe fn free_block(n: u32, ci: usize, zb: f32) {
     OPS_FREE = OPS_FREE.wrapping_add(1);
-    dirty_chunk(chunk_of_block(ci as u32));
+    dirty_chunk(chunk_id_f32((ci as i32 % MW) as f32, (ci as i32 / MW) as f32, zb));
     BL.free(n);
     dirty_block(n);
 }
@@ -90,7 +90,7 @@ pub unsafe extern "C" fn w_add(x: i32, y: i32, zb: f32, zt: f32, tex: i32, flags
             let nx = b.next;
             if b.zb < zt && b.zt > zb {
                 if prev == 0 { HEAD[ci] = nx; } else { BL[(prev - 1) as usize].next = nx; dirty_block(prev); }
-                free_block(cur, ci);
+                free_block(cur, ci, b.zb);
             } else { prev = cur; }
             cur = nx;
         }
@@ -138,10 +138,7 @@ pub unsafe extern "C" fn w_prune(minz: f32) {
             let nx = b.next;
             if b.zt < minz {
                 if prev == 0 { HEAD[ci] = nx; } else { BL[(prev - 1) as usize].next = nx; dirty_block(prev); }
-                let x = (ci as i32 % MW) as f32;
-                let y = (ci as i32 / MW) as f32;
-                dirty_chunk(chunk_id_f32(x, y, b.zb));
-                free_block(cur, ci); dirty_cell(ci);
+                free_block(cur, ci, b.zb); dirty_cell(ci);
             } else { prev = cur; lo = fmin(lo, b.zb); hi = fmax(hi, b.zt); clo = fmin(clo, b.zb); chi = fmax(chi, b.zt); }
             cur = nx;
         }
@@ -149,6 +146,34 @@ pub unsafe extern "C" fn w_prune(minz: f32) {
         CZ[ci] = [clo, chi];
     }
     ZMIN = lo; ZMAX = hi;
+}
+
+/// Quita los bloques de las celdas [x0, x1) × [y0, y1) cuya base (zb) está en [z0, z1): así JS expulsa un chunk del
+/// mundo de render cuando se aleja del jugador. Devuelve cuántos bloques quitó. ZMIN/ZMAX pueden quedar algo más
+/// anchos que el mundo real (solo sirven para cortar rayos antes); `w_prune` los vuelve a ajustar.
+#[no_mangle]
+pub unsafe extern "C" fn w_remove_box(x0: i32, y0: i32, x1: i32, y1: i32, z0: f32, z1: f32) -> i32 {
+    let (x0, y0, x1, y1) = (x0.max(0), y0.max(0), x1.min(MW), y1.min(MH));
+    let mut n = 0;
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let ci = (y * MW + x) as usize;
+            let (mut clo, mut chi) = (1e30f32, -1e30f32);
+            let (mut prev, mut cur, mut hit) = (0u32, HEAD[ci], false);
+            while cur != 0 {
+                let b = BL[(cur - 1) as usize];
+                let nx = b.next;
+                if b.zb >= z0 && b.zb < z1 {
+                    if prev == 0 { HEAD[ci] = nx; } else { BL[(prev - 1) as usize].next = nx; dirty_block(prev); }
+                    free_block(cur, ci, b.zb);
+                    n += 1; hit = true;
+                } else { prev = cur; clo = fmin(clo, b.zb); chi = fmax(chi, b.zt); }
+                cur = nx;
+            }
+            if hit { CZ[ci] = [clo, chi]; dirty_cell(ci); }
+        }
+    }
+    n
 }
 
 #[no_mangle]

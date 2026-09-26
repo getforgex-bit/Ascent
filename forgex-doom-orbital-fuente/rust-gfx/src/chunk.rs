@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 #![allow(static_mut_refs)]
 
+use core::arch::wasm32::f32_floor;
 use crate::contracts::*;
 
 #[repr(u32)]
@@ -42,10 +43,11 @@ pub fn chunk_id(cx: u32, cy: u32, cz: u32) -> u32 {
 pub fn chunk_id_f32(x: f32, y: f32, z: f32) -> u32 {
     let xi = if x < 0.0 { 0 } else { x as u32 };
     let yi = if y < 0.0 { 0 } else { y as u32 };
-    let zi = if z < 0.0 { 0 } else { z as u32 };
     let cx = (xi / CHUNK_W).min(CHUNKS_X - 1);
     let cy = (yi / CHUNK_H).min(CHUNKS_Y - 1);
-    let cz = (zi / CHUNK_Z).min(CHUNKS_Z - 1);
+    // En vertical la torre no tiene límite: el índice de chunk es un anillo de CHUNKS_Z capas de CHUNK_Z (como en JS,
+    // chunk vertical = floor(z / CHUNK_Z), aquí módulo CHUNKS_Z). Antes todo lo que pasaba de z = 56 caía en la capa 7.
+    let cz = (f32_floor(z / CHUNK_Z as f32) as i32).rem_euclid(CHUNKS_Z as i32) as u32;
     chunk_id(cx, cy, cz)
 }
 

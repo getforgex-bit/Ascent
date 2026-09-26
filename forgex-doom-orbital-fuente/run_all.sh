@@ -154,6 +154,9 @@ run_test "t_workers" "node pruebas/t_workers.js"
 # 19. Regresión de 6 escenarios críticos de gameplay (E3.2)
 run_test "regression_gameplay" "node pruebas/regression_gameplay.js"
 
+# 19b. Sistema de chunks: índice, streaming, imagen idéntica y réplicas de los hilos
+run_test "chunks" "node pruebas/chunks.js"
+
 # 20. Paridad GPU vs CPU (WebGPU, modos RT 0..3)
 run_test "parity_gpu" "node pruebas/parity_gpu.js"
 

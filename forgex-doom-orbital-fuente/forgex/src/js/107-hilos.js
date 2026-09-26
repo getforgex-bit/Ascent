@@ -5,7 +5,7 @@
   // luces, chispas) y lo envía; los hilos devuelven sus franjas en búferes transferibles que se reciclan.
   // Coste: un fotograma más de latencia y ~60 MB de memoria por hilo. Si algo falla, se vuelve a un solo hilo.
   const WORKER_SRC = '@@WORKER:render@@';
-  const WK = { list: [], ready: 0, id: 0, parts: new Map(), shown: 0, next: null, free: [], atlas: [], sentAt: new Map(), url: null, gen: 0, stats: { ms: 0, rays: 0, mem: 0 } };
+  const WK = { list: [], ready: 0, id: 0, parts: new Map(), shown: 0, next: null, free: [], atlas: [], sentAt: new Map(), url: null, gen: 0, stats: { ms: 0, rays: 0, mem: 0, blocks: [] } };
   function workersWanted() {
     const c = CFG.threads.workers;
     if (!CAPS.workers) return [0, 'el navegador no permite hilos'];
@@ -24,10 +24,10 @@
     WJ.on = false; WJ.ops = [];
     WORKERS.active = 0; WORKERS.why = why || ''; perf.thread = 0;
   }
-  // diario completo del mundo actual (para iniciar una réplica)
+  // diario con el mundo cargado ahora mismo (para iniciar una réplica): los mismos chunks que tiene el hilo principal
   function worldSnapshot() {
     const a = [];
-    for (const k of cellIdx) { const x = k % MW, y = (k / MW) | 0; for (const b of cells[k]) a.push(1, x, y, b.zb, b.zt, b.tex, blockFlags(b), b.gx, b.gy, b.gw, b.gh, b.ao || 0, 0); }
+    forLoadedBlocks(b => a.push(1, b.x, b.y, b.zb, b.zt, b.tex, blockFlags(b), b.gx, b.gy, b.gw, b.gh, b.ao, 0));
     return Float32Array.from(a);
   }
   function configureWorkers() {
@@ -74,6 +74,7 @@
     WK.parts.delete(d.id); WK.sentAt.delete(d.id);
     let ms = 0, rays = 0, w = 0, s = 0, l = 0;
     for (const q of p) { ms = Math.max(ms, q.ms[4]); w = Math.max(w, q.ms[0]); s = Math.max(s, q.ms[1]); l = Math.max(l, q.ms[2]); rays += q.rays; WK.stats.mem = q.mem; }
+    WK.stats.blocks = p.map(q => q.blocks); // bloques de cada réplica: deben coincidir con los del hilo principal
     perfAdd('thread', ms); perfAdd('world', w); perfAdd('sprites', s); perfAdd('light', l); perf.rays = rays;
     // fotogramas antiguos que llegan tarde: sus búferes se reciclan y no se muestran
     if (d.id <= WK.shown || (WK.next && WK.next.id > d.id)) { recycle(p); return; }

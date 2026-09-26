@@ -47,14 +47,18 @@ impl<T: Copy + Default, const N: usize> Pool<T, N> {
         self.live -= 1;
     }
 
+    /// Un índice fuera de 1..=used es un error de programa: se detiene con una trampa de WASM (que JS captura) en vez
+    /// de leer memoria ajena, como pasaba con `idx = 0` (0 − 1 se convertía en u32::MAX).
     #[inline(always)]
     pub fn get(&self, idx: u32) -> &T {
-        unsafe { self.data.get_unchecked((idx - 1) as usize) }
+        assert!(idx != 0 && idx <= self.used);
+        &self.data[(idx - 1) as usize]
     }
 
     #[inline(always)]
     pub fn get_mut(&mut self, idx: u32) -> &mut T {
-        unsafe { self.data.get_unchecked_mut((idx - 1) as usize) }
+        assert!(idx != 0 && idx <= self.used);
+        &mut self.data[(idx - 1) as usize]
     }
 
     #[inline(always)]

@@ -49,6 +49,7 @@ $tests = @(
     @{ Name = "t_cfg"; Command = "node pruebas/t_cfg.js" },
     @{ Name = "t_workers"; Command = "node pruebas/t_workers.js" },
     @{ Name = "regression_gameplay"; Command = "node pruebas/regression_gameplay.js" },
+    @{ Name = "chunks"; Command = "node pruebas/chunks.js" },
     @{ Name = "parity_gpu"; Command = "node pruebas/parity_gpu.js" }
 )
 

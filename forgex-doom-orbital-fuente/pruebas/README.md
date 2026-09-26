@@ -100,7 +100,7 @@ El script `run_all.sh` retornará código de salida `0` si todas las pruebas pas
   ```
 - **Qué hacer si falla:** Si falla por calidad gráfica, inspeccionar shaders WGSL en `forgex/src/shaders/`. Si se ejecuta en un entorno sin soporte de WebGPU (como CI sin GPU), la prueba lo detectará automáticamente y registrará `[SKIP]` con código de salida `0`.
 
-### 2.11 `regression_gameplay.js` — 10 Escenarios Críticos de Gameplay
+### 2.11 `regression_gameplay.js` — 12 Escenarios Críticos de Gameplay
 - **Qué verifica:** Valida mediante Playwright, con el motor Rust (el predeterminado), que estas mecánicas sigan funcionando:
   1. Andar 10 segundos por una pasarela sin atascarse (`stuck < 1.0`) ni morir.
   2. Aterrizar en una plataforma de la ruta sube el récord (`top`); las estructuras y ramas laterales no cuentan.
@@ -109,10 +109,13 @@ El script `run_all.sh` retornará código de salida `0` si todas las pruebas pas
   5. Curarse al estar quieto en reposo (consumo de reserva y aumento de vida).
   6. Caer al vacío, recibir daño por caída y reaparecer de forma segura en el último checkpoint.
   7. Salto (≥ 1,1 m) y doble salto (≥ 2,2 m) con la tecla Espacio.
-  8. Caída libre real (sin fijar `st.pz` a mano) que termina en el punto seguro con daño.
+  8. Caída libre real (sin fijar `st.pz` a mano): vuelve al centro de la pasarela, mirando hacia abajo y con daño.
   9. Morir y reiniciar con R deja al jugador vivo.
   10. Un imp dispara y su proyectil avanza hasta el jugador.
-- **Cómo está hecha:** el mundo es aleatorio en cada carga, así que los escenarios 1 y 7–10 usan una pasarela propia a
+  11. Caer desde el borde de una plataforma 5×5 devuelve a su centro exacto, mirando hacia abajo.
+  12. Una calavera que aparece justo detrás rodea al jugador hasta ±75° y ataca de frente; si el jugador gira para
+      dejarla siempre detrás, no recibe daño.
+- **Cómo está hecha:** el mundo es aleatorio en cada carga, así que los escenarios 1, 4–5 y 7–12 usan una pasarela propia a
   −5 m (más arriba, la poda del mundo borraría las estructuras de los demás escenarios). Las esperas dependen del estado
   del juego y no del reloj: sin GPU el render por software va a pocos FPS y cada fotograma avanza como máximo 0,1 s de
   simulación.
@@ -123,12 +126,21 @@ El script `run_all.sh` retornará código de salida `0` si todas las pruebas pas
 - **Qué hacer si falla:** Revisar la física y la IA en `075-fisica-del-jugador.js`, `080-enemigos.js` y el paso de
   simulación en `100-bucle-principal.js`. Las capturas de los escenarios 1–6 se guardan en `salida/gameplay_<N>.png`.
 
-### 2.12 `chunk_test.js` & `streaming_test.js` — Chunks y Streaming Espacial
-- **Qué verifica:** Estructura espacial de 2312 chunks (17x17x8), asignación de estados en WASM (`chunk_state`), funciones de mapeo de coordenadas (`chunkOf`), carga de catálogo y expulsión (`Evicted`) según radio de streaming alrededor del jugador.
-- **Cómo ejecutarla:**
+### 2.12 `chunks.js`, `streaming_test.js` y `chunk_test.js` — Chunks y streaming
+- **`chunks.js`** (Chromium, juego real con el motor Rust): cada bloque de `cells` está en su chunk (32×32 celdas,
+  capas de 8 sin límite vertical); Rust contiene **exactamente** los bloques de los chunks cargados (se recorre su
+  memoria) tras subir a z = 120, alejarse 150+ celdas del eje, sustituir bloques entre un chunk cargado y otro sin
+  cargar, podar y apagar/encender el streaming; lo cargado cubre la ventana; la imagen con streaming es **idéntica bit a
+  bit** a la imagen con todo cargado (columnas y cámara 3D mirando arriba y abajo), y las réplicas de los hilos de
+  render tienen los mismos bloques que el hilo principal.
+- **`streaming_test.js`** (Node, sin navegador): `w_remove_box` en las dos variantes quita solo la capa pedida,
+  reenlaza las listas, recalcula el rango de alturas por celda y marca el chunk en el anillo vertical.
+- **`chunk_test.js`**: pruebas unitarias de `chunk.rs` compiladas aparte (`chunk_test.rs`).
+- **Cómo ejecutarlas:**
   ```bash
-  node pruebas/chunk_test.js
+  node pruebas/chunks.js
   node pruebas/streaming_test.js
+  node pruebas/chunk_test.js
   ```
 
 ### 2.13 `c1_physics.js` & `c2_simd.js` — Física y Aritmética SIMD

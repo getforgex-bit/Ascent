@@ -162,33 +162,15 @@
   }
   function initWorld() {
     cells = new Array(MW * MH); cellIdx = new Set(); ships = []; lights = []; worldOp(4, []);
+    CHUNKS.map.clear(); CHUNKS.key = ''; CHUNKS.win = CHUNKS.stream ? chunkWindow(st.px, st.py, st.pz, 0) : null;
     gen = { h: 0, ang: rnd(0, TAU), r: 5, dir: Math.random() < .5 ? 1 : -1, last: null, steps: 0, fails: 0, afterPad: false, tier: 0, nodeNext: rnd(4, 6),
       regions: {}, rolls: 0, hits: 0, nodes: 0, armsTried: 0, branches: 0, branchPlats: 0, altars: 0, secrets: 0, maxReach: 0, lens: [], limits: 0, armsMade: 0, shipsMade: 0, dungeons: 0, houses: 0, linked: 0, stuck: 0, megas: 0, farlands: 0, farParts: 0 };
     plat(C - 2, C - 2, 5, 5, 0, 1.5, 1, 0, true);
     gen.last = { x: C - 2, y: C - 2, w: 5, h: 5, zt: 0 };
     let n = 0; while (gen.h < 34 && n++ < 400) nextStep();
-    if (typeof streamingActive !== 'undefined' && streamingActive) {
-      applyStreaming(streamingRadius, typeof st !== 'undefined' ? st.px : C, typeof st !== 'undefined' ? st.py : C, typeof st !== 'undefined' ? st.pz : 0);
-    }
   }
   function prune() {
     const minZ = Math.min(st.cp[2], st.pz) - 22;
-    worldOp(3, [minZ]);
-    for (const k of cellIdx) { const c = cells[k]; for (let i = c.length - 1; i >= 0; i--) if (c[i].zt < minZ) c.splice(i, 1); if (!c.length) { cells[k] = undefined; cellIdx.delete(k); } }
+    pruneWorld(minZ);
     st.enemies = st.enemies.filter(e => e.z > minZ); st.items = st.items.filter(i => i.z > minZ); ships = ships.filter(s => s.zf > minZ); lights = lights.filter(l => l.z > minZ);
-    // Limpiar catálogo de chunks completamente por debajo de minZ
-    if (typeof chunkCatalog !== 'undefined') {
-      const minCz = Math.max(0, Math.floor(minZ / CHUNK_Z));
-      for (let cz = 0; cz < minCz; cz++) {
-        for (let cy = 0; cy < CHUNKS_Y; cy++) {
-          for (let cx = 0; cx < CHUNKS_X; cx++) {
-            const chId = cz * (CHUNKS_X * CHUNKS_Y) + cy * CHUNKS_X + cx;
-            chunkCatalog[chId] = [];
-            if (typeof activeChunks !== 'undefined') activeChunks.delete(chId);
-            if (wasm && wasm.set_chunk_state) wasm.set_chunk_state(chId, 0);
-          }
-        }
-      }
-    }
   }
-

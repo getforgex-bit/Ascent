@@ -1,4 +1,4 @@
-// Test de regresión de gameplay (Plan E3): 10 escenarios críticos
+// Test de regresión de gameplay (Plan E3): 12 escenarios críticos
 let chromium;
 try {
   ({ chromium } = require('playwright'));
@@ -14,7 +14,7 @@ const SALIDA = path.join(__dirname, 'salida');
 fs.mkdirSync(SALIDA, { recursive: true });
 
 (async () => {
-  console.log('=== TEST REGRESSION_GAMEPLAY: 10 Escenarios Críticos ===\n');
+  console.log('=== TEST REGRESSION_GAMEPLAY: 12 Escenarios Críticos ===\n');
 
   let browser;
   try {
@@ -157,10 +157,8 @@ fs.mkdirSync(SALIDA, { recursive: true });
     hasRef: window.__doom.st.zoneRef !== null
   }));
 
-  // Salir de la mazmorra (al eje central al aire libre)
-  await page.evaluate(() => {
-    window.__doom.tp(266.5, 266.5, 0, 0);
-  });
+  // Salir de la mazmorra, a la pasarela (el suelo de salida ya puede estar podado: el escenario 2 subió a la ruta)
+  await page.evaluate(() => { window.__lane(); });
   await page.waitForTimeout(400);
 
   const zoneOut = await page.evaluate(() => ({
@@ -182,6 +180,7 @@ fs.mkdirSync(SALIDA, { recursive: true });
   // ESCENARIO 4: Mirar arriba y abajo: look cubre [-0.85, 0.85]
   // ----------------------------------------------------
   console.log('\n--- Escenario 4: Mirar arriba y abajo (rango [-0.85, 0.85]) ---');
+  await page.evaluate(() => { window.__lane(); });
   // Mirar arriba
   await page.evaluate(() => {
     window.__doom.st.look = 0.85;
@@ -309,7 +308,7 @@ fs.mkdirSync(SALIDA, { recursive: true });
   // ----------------------------------------------------
   // ESCENARIO 8: Caída libre al vacío termina en el punto seguro
   // ----------------------------------------------------
-  console.log('\n--- Escenario 8: Caída libre real hasta el punto seguro ---');
+  console.log('\n--- Escenario 8: Caída libre real hasta el punto seguro, en el centro de la pasarela ---');
   const s8 = await page.evaluate(() => new Promise(res => {
     const d = window.__doom, L = window.__lane(), st = d.st;
     // una columna vacía por debajo de la pasarela, a partir de 5 m de su extremo
@@ -319,18 +318,21 @@ fs.mkdirSync(SALIDA, { recursive: true });
       if (!c.some(b => b.zb < L.z + 1)) x = i + .5;
     }
     if (x === null) return res({ back: false, ms: 0, hpLost: 0, why: 'sin columna vacía' });
-    const cp = [st.cp[0], st.cp[1], st.cp[2]], hp0 = st.hp;
+    // la reaparición va al centro de la superficie del punto seguro: en la pasarela (3 de ancho), la fila del medio
+    const want = d.safeSpot(st.cp[0], st.cp[1], st.cp[2]), hp0 = st.hp;
     st.px = x; st.py = L.y0 + 1.5; st.pz = L.z - .5; st.vz = 0; st.ox = undefined; // en el aire, junto a la pasarela
     const t0 = performance.now();
     const iv = setInterval(() => {
-      const back = Math.hypot(st.px - cp[0], st.py - cp[1]) < 1 && Math.abs(st.pz - cp[2]) < .5;
-      if (back || performance.now() - t0 > 20000) { clearInterval(iv); res({ back, ms: Math.round(performance.now() - t0), hpLost: hp0 - st.hp }); }
-    }, 16);
+      const back = Math.hypot(st.px - want[0], st.py - want[1]) < .05 && Math.abs(st.pz - want[2]) < .01;
+      if (back || performance.now() - t0 > 20000) { clearInterval(iv);
+        const interior = Math.abs(want[1] - (L.y0 + 1.5)) < .01 && want[0] > L.x0 + 1 && want[0] < L.x0 + L.w - 1;
+        res({ back, interior, look: st.look, ms: Math.round(performance.now() - t0), hpLost: hp0 - st.hp }); }
+    }, 5);
   }));
-  if (s8.back && s8.hpLost > 0) {
-    console.log(`✓ Escenario 8 superado (volvió al punto seguro en ${s8.ms} ms, −${s8.hpLost} de vida)`);
+  if (s8.back && s8.interior && s8.look < -.2 && s8.hpLost > 0) {
+    console.log(`✓ Escenario 8 superado (volvió al centro de la pasarela en ${s8.ms} ms mirando hacia abajo, −${s8.hpLost} de vida)`);
   } else {
-    console.error(`✗ FAIL Escenario 8: la caída no terminó en el punto seguro (vuelta=${s8.back}, ${s8.ms} ms, vida perdida=${s8.hpLost})`);
+    console.error(`✗ FAIL Escenario 8: reaparición incorrecta (vuelta=${s8.back}, lejos del borde=${s8.interior}, vista=${s8.look}, ${s8.ms} ms, vida perdida=${s8.hpLost})`);
     allPassed = false;
   }
 
@@ -370,6 +372,61 @@ fs.mkdirSync(SALIDA, { recursive: true });
     console.log('✓ Escenario 10 superado (el imp disparó y el proyectil avanzó)');
   } else {
     console.error(`✗ FAIL Escenario 10: el imp no atacó (proyectiles=${s10.shots}, avanzan=${s10.moved})`);
+    allPassed = false;
+  }
+
+  // ----------------------------------------------------
+  // ESCENARIO 11: Caer desde el borde de una plataforma 5×5 devuelve al centro exacto
+  // ----------------------------------------------------
+  console.log('\n--- Escenario 11: Reaparición en el centro de la plataforma ---');
+  const s11 = await page.evaluate(() => new Promise(res => {
+    const d = window.__doom, L = window.__lane(), st = d.st, x0 = L.x0 + 8, y0 = L.y0 - 12, z = L.z;
+    d.plat(x0, y0, 5, 5, z, .5, 5);
+    d.tp(x0 + 4.7, y0 + 1.5, z, 0); // borde este, mirando al este
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' }));
+    const t0 = performance.now(); let fell = false;
+    const iv = setInterval(() => {
+      if (st.pz < z - 1) { fell = true; window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' })); }
+      if ((fell && Math.abs(st.pz - z) < .01) || performance.now() - t0 > 20000) { clearInterval(iv); window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
+        res({ fell, dx: st.px - (x0 + 2.5), dy: st.py - (y0 + 2.5), look: st.look }); }
+    }, 2);
+  }));
+  if (s11.fell && Math.hypot(s11.dx, s11.dy) < .15 && s11.look < -.2) {
+    console.log(`✓ Escenario 11 superado (reapareció a ${Math.hypot(s11.dx, s11.dy).toFixed(2)} m del centro, vista ${s11.look.toFixed(2)})`);
+  } else {
+    console.error(`✗ FAIL Escenario 11: no reapareció en el centro (cayó=${s11.fell}, desvío=[${s11.dx}, ${s11.dy}], vista=${s11.look})`);
+    allPassed = false;
+  }
+
+  // ----------------------------------------------------
+  // ESCENARIO 12: La calavera solo ataca de frente (±90°) y, si está detrás, rodea al jugador
+  // ----------------------------------------------------
+  console.log('\n--- Escenario 12: Calavera que aparece detrás ---');
+  const s12 = await page.evaluate(() => new Promise(res => {
+    const d = window.__doom, L = window.__lane(), st = d.st, z = L.z, x0 = L.x0 - 45, y0 = L.y0 - 45;
+    d.plat(x0, y0, 30, 30, z, .5, 5);
+    d.tp(x0 + 15, y0 + 15, z, 0); // mirando a +x
+    d.spawn('skull', x0 + 8, y0 + 15, z + 1); const e = st.enemies[st.enemies.length - 1]; e.state = 'approach'; // justo detrás
+    const rel = () => { const a = Math.atan2(e.y - st.py, e.x - st.px) - st.pa; return Math.abs(a - 2 * Math.PI * Math.round(a / (2 * Math.PI))); };
+    const rel0 = rel(); let hp = st.hp, behind = 0, front = 0, minRel = 9; const t0 = performance.now();
+    const iv = setInterval(() => {
+      minRel = Math.min(minRel, rel());
+      if (st.hp < hp) { if (rel() > Math.PI / 2 + .2) behind++; else front++; hp = st.hp; }
+      if (front || performance.now() - t0 > 30000) { clearInterval(iv); res({ rel0, minRel, behind, front }); }
+    }, 2);
+  }));
+  const s12b = await page.evaluate(() => new Promise(res => { // el jugador se gira para dejarla siempre detrás
+    const d = window.__doom, st = d.st, L = window.__lane(), x0 = L.x0 - 45, y0 = L.y0 - 45, z = L.z;
+    d.tp(x0 + 15, y0 + 15, z, 0); st.hp = 100;
+    d.spawn('skull', x0 + 20, y0 + 15, z + 1); const e = st.enemies[st.enemies.length - 1]; e.state = 'approach';
+    const t0 = performance.now();
+    const iv = setInterval(() => { st.pa = Math.atan2(e.y - st.py, e.x - st.px) + Math.PI;
+      if (performance.now() - t0 > 8000) { clearInterval(iv); res({ hpLost: 100 - st.hp }); } }, 2);
+  }));
+  if (s12.rel0 > 3 && s12.minRel < Math.PI / 2 && s12.front > 0 && s12.behind === 0 && s12b.hpLost === 0) {
+    console.log(`✓ Escenario 12 superado (empezó a ${(s12.rel0 * 180 / Math.PI).toFixed(0)}°, rodeó hasta ${(s12.minRel * 180 / Math.PI).toFixed(0)}° y atacó de frente; girando para dejarla detrás: sin daño)`);
+  } else {
+    console.error(`✗ FAIL Escenario 12: rel0=${s12.rel0}, mín=${s12.minRel}, golpes de frente=${s12.front}, por detrás=${s12.behind}, daño girando=${s12b.hpLost}`);
     allPassed = false;
   }
   await page.evaluate(() => { window.__lane(); });

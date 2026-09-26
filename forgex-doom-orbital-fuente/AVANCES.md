@@ -23,7 +23,7 @@ configuración central, presets, AUTO, rutas de respaldo, panel de rendimiento y
 | 6. Multihilo con respaldo | ✅ Hecho (sin validar en equipos de ≥4 núcleos) | Web Workers con réplica del mundo, diario de cambios, franjas verificadas idénticas al render completo, vuelta automática a un hilo si fallan. |
 | 7. RT optimizado, temporal y denoise | ⚠️ Parcial | Distancia máxima de sombras RT configurable. **Acumulación temporal, denoise, varios rayos por píxel y luz indirecta NO están implementados**: dependen de la ruta WebGPU. |
 | 8. Calidad adaptativa y resolución dinámica | ✅ Hecho | AUTO con 8 niveles, histéresis, enfriamiento y bloqueo anti-vaivén; resolución dinámica; preset automático por **medición**. |
-| 9. Streaming / caché | ❌ No empezado | El mundo ya se genera y se poda por alturas (desde versiones anteriores); no hay caché nueva. |
+| 9. Streaming / caché | ✅ Parcial | Chunks de 32×32 celdas × 8 de alto, sin límite vertical; el mundo de Rust (render, hilos, WebGPU) solo carga la ventana alrededor del jugador (ver «Cambios del 26 de septiembre (2)»). JS conserva el mundo entero; no hay caché en disco. |
 | 10. Perfilado final y documentación | ⚠️ Parcial | Este documento y mediciones parciales; falta la comparación final completa y la batería de regresión. |
 | **Ruta WebGPU** | ❌ No implementada | `110-webgpu.js` es un esqueleto: detecta el adaptador, pero `startGPU()` siempre devuelve «no disponible». |
 
@@ -259,6 +259,53 @@ Los escenarios 1 y 2 anteriores solo pasaban gracias al fallo (el jugador flotab
 en las estructuras); se rehicieron sobre una pasarela propia y sobre una plataforma de la ruta. La prueba nueva
 falla en 5 de 10 escenarios con el build anterior y pasa en 6 de 6 ejecuciones con la corrección.
 
+
+### Cambios del 26 de septiembre de 2026 (2): calavera, reaparición, chunks y `pool.rs`
+**Calavera solo de frente** (`080-enemigos.js`). Solo ataca desde el semicírculo delantero del jugador (±90° respecto a
+hacia donde mira). Si está detrás, lo rodea por el lado más corto a 4,5–7 m (a 4,2 m/s) hasta entrar en ±75° y entonces
+se acerca, avisa y embiste. Si durante el aviso el jugador se gira y queda detrás, vuelve a rodearlo; si queda detrás
+durante la embestida, la aborta sin golpear. Medido: aparece a 180°, rodea hasta 75° y golpea de frente; si el
+jugador gira para dejarla siempre detrás, 0 de daño en 8–12 s.
+
+**Reaparición en el centro de la plataforma** (`040-colisiones.js`: `safeSpot`, `075-fisica-del-jugador.js`). Al caer
+al vacío o atascarse, el jugador vuelve a la superficie del último punto seguro (misma altura de suelo, sin ácido ni
+impulsores, con espacio encima), a la zona más alejada de cualquier borde y, entre las que empatan, a su centro:
+en una plataforma 5×5, el centro exacto; en una 4×2, su centro geométrico. La búsqueda llega a 16 celdas; en
+superficies más grandes, el punto queda a unas 8 celdas del borde por el que se cayó. La vista queda a −0,3 rad (unos
+17° hacia abajo). Esto también evita el bucle de caídas al reaparecer justo en el borde con W pulsada.
+
+**Chunks** (`025-mundo.js`). Sustituyen al catálogo de operaciones anterior, que crecía sin fin, se desincronizaba al
+sustituir bloques o poner ácido, metía todo lo de z ≥ 56 en la misma capa, no avisaba a los hilos de render y reconstruía
+el mundo de Rust entero en cada cambio:
+- Chunk = 32×32 celdas × 8 de alto; capa vertical `floor(z / 8)`, sin límite (también negativa). Cada bloque pertenece
+  al chunk de su base (el bloque más alto mide 3,8, así que la ventana carga una capa más por debajo).
+- JS guarda siempre el mundo entero (física y render JS). El mundo de Rust contiene exactamente los bloques de los
+  chunks cargados: con la opción «Cargar en el motor solo los chunks cercanos» (Memoria, activada por defecto), los de
+  la ventana distancia de dibujo + 8 alrededor del jugador en horizontal y vertical, con 8 de histéresis al expulsar;
+  sin ella, todos. Cargar = `w_add` de sus bloques; expulsar = `w_remove_box` (nuevo en Rust). Ambos viajan en el diario
+  a los hilos de render (código 5), y las réplicas nuevas se crean solo con lo cargado.
+- La poda recorre solo los chunks que empiezan por debajo del corte, no todas las celdas.
+- Medido: con streaming, Rust tiene un 46–54 % menos de bloques; la imagen es idéntica bit a bit a la de todo cargado
+  (columnas y cámara 3D mirando arriba y abajo); el render por columnas pasa de ~4,8 a ~4,15 ms y la cámara 3D apenas
+  cambia (~2 %), en el contenedor de 2 núcleos sin GPU.
+- En Rust, los rangos modificados usan la misma rejilla con un anillo vertical de 8 capas (antes se topaban en la capa 7).
+  El estado por chunk de `chunk.rs` (`set_chunk_state`, `chunk_stats`) ya no lo usa el juego: la fuente de verdad es JS.
+
+**`pool.rs`**: `Pool::get`/`get_mut` comprueban el índice (`1..=used`). Un índice inválido detiene el motor con una
+trampa de WASM (que el juego captura y, si se repite, cambia de motor) en vez de leer memoria ajena. **`physics.rs`**: el
+récord usa la marca de ruta (16) en lugar de `F_SHIP`. Ambos WASM se recompilaron con `build.sh` (ahora con
+`-Z build-std`); paridad SIMD/escalar 144/144, franjas 64/64 en cada variante y variante escalar solo MVP. Las copias
+`forgex_gfx*.wasm` de la carpeta raíz, que usan las pruebas de simulación y eran compilaciones más antiguas, se igualaron
+a las de `rust-gfx/`.
+
+Pendiente si se vuelve a conectar la simulación de Rust: `sim.rs` y `physics.rs` no incluyen la regla de la calavera ni
+la reaparición en el centro de la plataforma.
+
+Pruebas: `regression_gameplay.js` pasa a 12 escenarios (reaparición en el centro, calavera); `chunks.js` (nueva) comprueba
+el sistema de chunks contra el juego real; `streaming_test.js` prueba `w_remove_box` en las dos variantes;
+`d3_memory.js` se retiró (usaba la API de streaming eliminada y ya fallaba antes: exigía un 60 % de reducción sobre su
+propia simulación del mundo).
+
 ---
 
 ## 12. Agente E — Configuración central, instrumentación, tests y CI
@@ -285,7 +332,7 @@ falla en 5 de 10 escenarios con el build anterior y pasa en 6 de 6 ejecuciones c
   - Línea 4: CPU JS con los 8 tiempos de simulación, IA, mundo, sprites, composición, HUD, lógica y total.
   - Línea 5: GPU en ms, volumen de subidas en KB, pases de render e instancias de sprites.
   - Línea 6: Memoria JS, WASM estático (~61 MB constante), WASM vivo, asignaciones dinámicas en caliente (`allocs`) y VRAM GPU.
-  - Línea 7: Chunks totales, visibles en frustum, en CPU, en GPU y expulsados.
+  - Línea 7: chunks con bloques, a la vista, cargados en Rust (con su número de bloques), expulsados y capa vertical del jugador.
   - Línea 8: Motor/backend activo, resolución efectiva, porcentaje de escala, modo RT y tipo de cámara.
 - **Caché y optimización de dibujo**: Los textos de las 8 líneas y el ancho del panel (`PERF.overlayW`) se formatean y miden exclusivamente dentro de `perfStats()` a la frecuencia configurada (`statsHz`, 4 Hz por defecto), eliminando el micro-stutter que causaba `ctx.measureText` en cada fotograma.
 - **`098-ajustes.js` & `page.html`**: Indicador visual `s-sync` en el panel de opciones que muestra en tiempo real el backend sincronizado en Rust y el instante de la última sincronización.
@@ -316,7 +363,7 @@ falla en 5 de 10 escenarios con el build anterior y pasa en 6 de 6 ejecuciones c
 | **4** | `#e6e2f5`<br>`CPU JS: 8 métricas` | **Carga de trabajo en JavaScript (ms).**<br>Desglosa los subsistemas en el hilo principal de JavaScript: `sim` (física y simulación JS), `ai` (inteligencia artificial de criaturas), `world` (recorrido del mundo y oclusión), `sprites` (preparación de sprites e iconos), `comp` (composición 2D, bloom y viñeta), `hud` (dibujo de interfaz, barras, textos e iconos), `total` (tiempo acumulado de trabajo por fotograma) y `logic` (lógica general del juego). |
 | **5** | `#e6e2f5`<br>`GPU · subidas · pases · instancias` | **Carga del pipeline gráfico y memoria de transferencia.**<br>- `GPU`: tiempo consumido por la GPU en ms (con GPU timestamps reales si el navegador lo permite o estimación precisa).<br>- `subidas`: volumen en KB transferido a la GPU en el fotograma.<br>- `pases`: número de render/compute passes ejecutados.<br>- `instancias`: cantidad de sprites dibujados mediante instanciación en GPU. |
 | **6** | `#e6e2f5`<br>`Memoria: JS · WASM estático · WASM vivo · allocs · GPU` | **Diagnóstico de memoria y recolección de basura.**<br>- `JS`: tamaño del heap de JavaScript en MB.<br>- `WASM estático`: memoria nativa estática reservada por WebAssembly (estrictamente constante a ~61 MB).<br>- `WASM vivo`: memoria dinámica viva en MB.<br>- `allocs`: contador de asignaciones dinámicas en caliente (`wasm_alloc_count()`). Debe ser estrictamente 0 durante el render para garantizar cero pausas por GC.<br>- `GPU`: VRAM ocupada por texturas y búferes en MB. |
-| **7** | `#e6e2f5`<br>`Chunks: total · visibles · CPU · GPU · expulsados` | **Gestión espacial del mundo por chunks.**<br>- `total`: número total de chunks del mundo (2312).<br>- `visibles`: chunks dentro del frustum de la cámara.<br>- `CPU`: chunks activos en memoria del procesador.<br>- `GPU`: chunks con búferes cargados en la GPU.<br>- `expulsados`: chunks liberados de memoria por distancia o streaming vertical. |
+| **7** | `#e6e2f5`<br>`Chunks 32×32×8: con bloques · a la vista · cargados (bloques) · expulsados · capa` | **Gestión espacial del mundo por chunks.**<br>- `con bloques`: chunks que existen (solo se crean al tener bloques; en vertical no hay límite).<br>- `a la vista`: cargados, a menos de la distancia de dibujo y dentro del campo de visión con margen.<br>- `cargados`: chunks (y bloques) presentes en el mundo de Rust; con WebGPU, también en la GPU.<br>- `expulsados`: chunks que solo están en JS, fuera de la ventana alrededor del jugador.<br>- `capa`: capa vertical del jugador, `floor(z / 8)`. |
 | **8** | `#5ff2e6`<br>`Motor · resolución · RT · cámara` | **Identidad y configuración efectiva del motor.**<br>- Motor activo: `WebGPU (<GPU>)`, `Rust + WebAssembly con/sin SIMD (<hilos> hilos)` o `JavaScript`.<br>- Resolución: dimensiones internas (`RW×RH`) y porcentaje relativo a la resolución base.<br>- Trazado de rayos: modo efectivo (`apagado`, `4 luces`, `todas`, `suaves`) y aviso `(AUTO)` si la calidad adaptativa lo recortó.<br>- Cámara: proyección activa (`3D real por píxel` o `raycaster por columnas`). |
 
 ---

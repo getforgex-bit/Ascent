@@ -20,9 +20,15 @@ if [ -d "$WSYS" ] && [ -d "$WSYS_MVP" ]; then
   build "$WSYS" forgex_gfx.wasm -C target-feature=+simd128,+bulk-memory,+nontrapping-fptoint
   build "$WSYS_MVP" forgex_gfx_scalar.wasm -C target-cpu=mvp
 else
-  RUSTC_BOOTSTRAP=1 RUSTFLAGS="-C target-feature=+simd128,+bulk-memory,+nontrapping-fptoint" cargo build --release --target wasm32-unknown-unknown
-  cp target/wasm32-unknown-unknown/release/forgex_gfx.wasm forgex_gfx.wasm
-  RUSTC_BOOTSTRAP=1 RUSTFLAGS="-C target-cpu=mvp" cargo build --release --target wasm32-unknown-unknown
-  cp target/wasm32-unknown-unknown/release/forgex_gfx.wasm forgex_gfx_scalar.wasm
+  # Sin sysroots propios: cargo recompila core para cada variante (-Z build-std). Así la variante MVP no hereda
+  # instrucciones posteriores a WebAssembly 1.0 del core precompilado. Requiere: rustup target add
+  # wasm32-unknown-unknown && rustup component add rust-src.
+  STD="-Z build-std=core,compiler_builtins -Z build-std-features=compiler-builtins-mem"
+  RUSTC_BOOTSTRAP=1 RUSTFLAGS="-C target-feature=+simd128,+bulk-memory,+nontrapping-fptoint" \
+    cargo build --release --target wasm32-unknown-unknown $STD --target-dir target/simd
+  cp target/simd/wasm32-unknown-unknown/release/forgex_gfx.wasm forgex_gfx.wasm
+  RUSTC_BOOTSTRAP=1 RUSTFLAGS="-C target-cpu=mvp" \
+    cargo build --release --target wasm32-unknown-unknown $STD --target-dir target/mvp
+  cp target/mvp/wasm32-unknown-unknown/release/forgex_gfx.wasm forgex_gfx_scalar.wasm
 fi
 ls -l forgex_gfx.wasm forgex_gfx_scalar.wasm

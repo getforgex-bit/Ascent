@@ -189,7 +189,7 @@ pub unsafe fn physics_step(dt: f32) {
                 SIM.cp_y = SIM.py;
                 SIM.cp_z = land_zt;
             }
-            if (land_flags & F_SHIP) != 0 && land_zt > SIM.top {
+            if (land_flags & F_ROUTE) != 0 && land_zt > SIM.top { // el récord solo sube en la ruta, como en JS
                 SIM.top = land_zt;
             }
         } else if SIM.vz > 0.0 {

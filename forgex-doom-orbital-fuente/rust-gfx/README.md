@@ -43,6 +43,20 @@ el cénit y el nadir se ven sin deformación.
 | `render`, `render3d`, `light_pass`, `bloom_down` | Aceptan una franja de columnas `[cx0, cx1)`. El hilo principal pasa `0..RW`; cada hilo de render (Web Worker) pasa la suya y `light_pass` escribe la salida con el ancho de la franja. |
 | `light_pass(…, rtmax)` | Solo lanza rayos de sombra para píxeles a menos de `rtmax` de profundidad (opción «Distancia máxima con sombras RT»). |
 | `w_dirty`, `w_used`, `w_zrange`, `p_head`, `p_bl`, `p_cz` | Rangos del mundo modificados desde la última consulta y punteros a sus arrays, pensados para subir solo lo cambiado a una GPU. |
+| `w_remove_box(x0, y0, x1, y1, z0, z1)` | Quita los bloques de las celdas `[x0, x1) × [y0, y1)` con base en `[z0, z1)`: así JS expulsa un chunk (32×32 celdas × 8 de alto) del mundo de render. Recalcula el rango de alturas de cada celda tocada. |
+
+### Chunks
+
+JS (`025-mundo.js`) decide qué chunks están cargados en Rust: los de una ventana alrededor del jugador (distancia de
+dibujo + 8, también en vertical) o todos si el streaming está apagado. Rust solo recibe bloques (`w_add`) y
+expulsiones (`w_remove_box`). Sus rangos modificados (`w_dirty`) usan la misma rejilla: 17×17 chunks en horizontal y,
+en vertical, un anillo de 8 capas (`floor(z / 8) mód 8`), sin el tope que antes metía todo lo de z ≥ 56 en la capa 7.
+
+### Compilar
+
+`sh build.sh`. Sin los sysroots propios (`$WSYS`, `$WSYS_MVP`) usa `cargo -Z build-std` para recompilar `core` en cada
+variante; necesita `rustup target add wasm32-unknown-unknown` y `rustup component add rust-src`. Después, copiar los
+dos `.wasm` también a la carpeta superior (las pruebas de simulación los leen de ahí) y ejecutar `python3 ../forgex/build.py`.
 
 Pruebas (en `../pruebas`): `parity.js` comprueba que la variante sin SIMD da la misma imagen bit a bit que la
 SIMD (144 casos); `strips.js` comprueba que dibujar en 3 franjas separadas da exactamente la misma imagen que el

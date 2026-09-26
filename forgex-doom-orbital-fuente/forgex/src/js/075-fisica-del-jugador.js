@@ -2,6 +2,15 @@
   const REGEN_RESET = 15;
   function regenStep(n) { let a = .2, b = .3; if (n === 0) return .1; if (n === 1) return .2; for (let k = 2; k < n; k++) [a, b] = [b, +(a + b).toFixed(4)]; return b; }
 
+  // Vuelta al punto seguro: al centro de la superficie donde estaba (lejos del borde, ver safeSpot), mirando un poco
+  // hacia abajo para ver dónde se está de pie.
+  const RESPAWN_LOOK = -.3;
+  function respawnSafe() {
+    const s = safeSpot(st.cp[0], st.cp[1], st.cp[2]);
+    st.px = st.cp[0] = s[0]; st.py = st.cp[1] = s[1]; st.pz = st.cp[2] = s[2];
+    st.vz = 0; st.kx = st.ky = 0; st.look = RESPAWN_LOOK;
+  }
+
   function physics(dt) {
     // (la cámara se gira en applyLook, una vez por fotograma)
     const dx = Math.cos(st.pa), dy = Math.sin(st.pa);
@@ -40,11 +49,11 @@
     st.pz = nz;
     // anti-atasco: si el cuerpo quedó dentro de un bloque, volver al último punto seguro sin castigo
     if (solidAt(st.px, st.py, st.pz + .5)) { st.stuck = (st.stuck || 0) + dt;
-      if (st.stuck > .4) { [st.px, st.py, st.pz] = st.cp; st.vz = 0; st.kx = st.ky = 0; st.stuck = 0; msg('Te atascaste: vuelves al último punto seguro.', '#ffb347'); } }
+      if (st.stuck > .4) { respawnSafe(); st.stuck = 0; msg('Te atascaste: vuelves al último punto seguro.', '#ffb347'); } }
     else st.stuck = 0;
-    // caída al vacío: daño, vuelta al último punto seguro y curación bloqueada
+    // caída al vacío: daño, vuelta al punto seguro y curación bloqueada
     if (st.pz < st.cp[2] - 14) {
-      [st.px, st.py, st.pz] = st.cp; st.vz = 0; st.kx = st.ky = 0; st.healLock = FALL_LOCK; SFX.fall();
+      respawnSafe(); st.healLock = FALL_LOCK; SFX.fall();
       msg(`Caíste al vacío: −${FALL_DMG} de vida. Curación bloqueada ${FALL_LOCK} s.`, '#ff8a7a');
       hurtPlayer(FALL_DMG); st.dmg = .6;
     }

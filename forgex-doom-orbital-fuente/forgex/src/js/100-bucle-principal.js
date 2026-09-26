@@ -70,6 +70,8 @@
     if (st.hp < st.maxHp * .3) { st.hbT -= dt; if (st.hbT <= 0) { SFX.heart(); st.hbT = .95; } }
     genT -= dt; if (genT <= 0) { genT = .5; let n = 0; while (gen.h < st.top + 32 && n++ < 6) nextStep(); }
     st.pruneT -= dt; if (st.pruneT <= 0) { st.pruneT = 2; prune(); }
+    if (CHUNKS.stream !== CFG.memory.chunkStreaming) setChunkStreaming(CFG.memory.chunkStreaming);
+    else streamChunks(st.px, st.py, st.pz);
     let z = null; for (let q = ships.length - 1; q >= 0; q--) { const s = ships[q]; if (st.px >= s.x0 && st.px < s.x0 + s.w && st.py >= s.y0 && st.py < s.y0 + s.h && st.pz >= s.zf - .6 && st.pz < s.zf + (s.hgt || CH)) { z = s; break; } }
     if (z && z !== st.zoneRef) { st.zone = z.name; st.zoneT = 2.6; }
     st.zoneRef = z || null;

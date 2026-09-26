@@ -30,6 +30,7 @@
     ['perf', 'culling', 'Descartar lo que no se ve', 'check', null, true],
     ['perf', 'statsHz', 'Refresco de estadísticas', 'select', [[5, '5 Hz'], [10, '10 Hz'], [30, '30 Hz']], 10],
     ['memory', 'framesInFlight', 'Fotogramas en vuelo', 'select', [[2, '2 (doble búfer)'], [3, '3 (triple búfer)']], 2],
+    ['memory', 'chunkStreaming', 'Cargar en el motor solo los chunks cercanos', 'check', null, true],
     ['threads', 'workers', 'Hilos de render', 'select', [['auto', 'Automático'], [0, 'Ninguno'], [1, '1'], [2, '2'], [3, '3'], [4, '4']], 'auto', 'workers'],
     ['cpu', 'simd', 'SIMD de WebAssembly', 'check', null, true, 'simd'],
     ['debug', 'overlay', 'Mostrar rendimiento', 'check', null, false],
@@ -46,7 +47,8 @@
   };
   const PRESET_ORDER = ['ultra', 'alta', 'media', 'baja', 'rendimiento'];
   function defaultConfig() {
-    const c = { preset: 'auto', chunks: { sizeX: 16, sizeY: 16, sizeZ: 16, streamRadius: 12 } };
+    // tamaño real de los chunks de 025-mundo.js (fijo, no es una opción) y radio horizontal de la ventana en chunks
+    const c = { preset: 'auto', chunks: { sizeX: 32, sizeY: 32, sizeZ: 8, streamRadius: 2 } };
     for (const [s, k, , , , def] of OPTIONS) (c[s] = c[s] || {})[k] = def;
     return c;
   }
@@ -64,7 +66,6 @@
       for (const [s, k, , type, opts] of OPTIONS) { const v = saved[s] && saved[s][k];
         if (v === undefined || v === null) continue;
         if (type === 'check') c[s][k] = !!v; else if (opts.some(o => o[0] === v)) c[s][k] = v; }
-      if (saved.chunks) Object.assign(c.chunks, saved.chunks);
     }
     c.loaded = !!saved;
     return c;

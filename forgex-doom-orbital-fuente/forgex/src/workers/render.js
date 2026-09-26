@@ -13,6 +13,7 @@ function applyJournal(J) {
     else if (op === 2) { X.w_set_acid(J[i], J[i + 1], J[i + 2]); i += 3; }
     else if (op === 3) { X.w_prune(J[i]); i += 1; }
     else if (op === 4) X.w_reset();
+    else if (op === 5) { X.w_remove_box(J[i], J[i + 1], J[i + 2], J[i + 3], J[i + 4], J[i + 5]); i += 6; }
     else throw new Error('diario del mundo corrupto');
   }
 }
@@ -62,7 +63,7 @@ onmessage = e => {
     let gds = null;
     if (d.bloom) { gds = d.gds && d.gds.byteLength >= gN * 4 ? d.gds : new ArrayBuffer(gN * 4); new Uint32Array(gds, 0, gN).set(new Uint32Array(B, X.p_gds(), gN)); }
     const t4 = performance.now();
-    postMessage({ t: 'done', k: K, id: d.id, rw, rh, x0, x1, out, gds, rays, ms: [t1 - t0, t2 - t1, t3 - t2, t4 - t3, t4 - t0], mem: B.byteLength },
+    postMessage({ t: 'done', k: K, id: d.id, rw, rh, x0, x1, out, gds, rays, ms: [t1 - t0, t2 - t1, t3 - t2, t4 - t3, t4 - t0], mem: B.byteLength, blocks: X.w_live() },
       gds ? [out, gds] : [out]);
   } catch (err) { postMessage({ t: 'error', k: K, msg: String(err && err.message || err) }); }
 };

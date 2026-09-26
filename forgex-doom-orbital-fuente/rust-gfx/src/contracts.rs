@@ -31,6 +31,7 @@ pub const F_RIM: u8 = 1;
 pub const F_SHIP: u8 = 2;
 pub const F_PAD: u8 = 4;
 pub const F_ACID: u8 = 8;
+pub const F_ROUTE: u8 = 16;
 
 // Estructuras C-ABI compartidas
 #[repr(C)]

@@ -32,14 +32,8 @@
     let liveMB = (wasm && wasm.wasm_bytes_live) ? (wasm.wasm_bytes_live() / 1048576).toFixed(0) : '0';
     let allocs = (wasm && wasm.wasm_alloc_count) ? wasm.wasm_alloc_count() : 0;
 
-    let chLine = 'Chunks: (gestión JS)';
-    if (wasm && wasm.chunk_stats) {
-      const ptr = wasm.chunk_stats();
-      if (ptr) {
-        const stats = new Uint32Array(wasm.memory.buffer, ptr, 5);
-        chLine = `Chunks: ${stats[1]}/${stats[0]} visibles · CPU ${stats[2]} · GPU ${stats[3]} · evicted ${stats[4]}`;
-      }
-    }
+    const K = chunkStats();
+    const chLine = `Chunks ${CHUNK_XY}×${CHUNK_XY}×${CHUNK_Z}: ${K.total} con bloques · a la vista ${K.visible} · cargados ${K.loaded} (${K.blocks} bloques)${BACKEND === 'webgpu' ? ' en GPU' : ''} · expulsados ${K.evicted} · capa ${K.layer}${CHUNKS.stream ? '' : ' · streaming apagado'}`;
 
     PERF.lines = [
       ['#9dff7a', `FPS ${S.fps.toFixed(0)}${Math.abs(S.imgFps - S.fps) > 2 ? ' (imágenes nuevas ' + S.imgFps.toFixed(0) + '/s)' : ''} · fotograma ${f(S.gapAvg)} ms · 1 % ${f(S.gapP99)} ms · 0,1 % ${f(S.gapP999)} ms · σ ${f(S.sd)} · tirones ${S.stutters}`],

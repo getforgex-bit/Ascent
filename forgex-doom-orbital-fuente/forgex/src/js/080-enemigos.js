@@ -1,4 +1,23 @@
   // ================= ENEMIGOS =================
+  // La calavera solo ataca desde el semicírculo delantero del jugador: ±90° respecto a hacia donde mira. Empieza
+  // el ataque con 15° de margen dentro de ese arco para no quedarse en el límite y cancelarlo al instante.
+  const SKULL_ARC = Math.PI / 2, SKULL_ARC_START = SKULL_ARC - Math.PI / 12, SKULL_ORBIT_SPEED = 4.2;
+  function skullRel(e) { // ángulo de la calavera respecto a la vista del jugador en [-π, π]; 0 = justo delante
+    const a = Math.atan2(e.y - st.py, e.x - st.px) - st.pa;
+    return a - TAU * Math.round(a / TAU);
+  }
+  // Si está detrás (o encima), rodea al jugador por el lado más corto hacia su frente, a 4,5–7 m de distancia.
+  function skullOrbit(e, rel, tz, move) {
+    const rx = e.x - st.px, ry = e.y - st.py, dh = Math.hypot(rx, ry), vz = clamp(tz, -1, 1) * 1.5;
+    let vx, vy;
+    if (dh < .8) { vx = Math.cos(st.pa) * SKULL_ORBIT_SPEED; vy = Math.sin(st.pa) * SKULL_ORBIT_SPEED; }
+    else {
+      if (!e.orbit) e.orbit = rel > 0 ? -1 : 1; // sentido fijo hasta llegar al frente: no duda cuando está justo detrás
+      const ux = rx / dh, uy = ry / dh, k = clamp((clamp(dh, 4.5, 7) - dh) * 1.5, -2, 2);
+      vx = -uy * e.orbit * SKULL_ORBIT_SPEED + ux * k; vy = ux * e.orbit * SKULL_ORBIT_SPEED + uy * k;
+    }
+    if (!move(vx, vy, vz)) { e.orbit = -(e.orbit || 1); move(0, 0, 2); } // pared: cambia de sentido y sube
+  }
   function stepEnemy(e, dt) { // devuelve true si la criatura terminó de desaparecer
     const camZ = st.pz + EYE, chest = st.pz + .5;
     if (e.dead) { // animación de muerte; calaveras y cacodemonios caen y desaparecen
@@ -35,12 +54,19 @@
       if (e.state === 'idle') { e.z += Math.sin(time * 2 + e.ph) * .2 * dt; if (sees && d3 < 14) { e.state = 'approach'; SFX.skullTele(v * .5); } }
       else if (e.state === 'approach') {
         e.lost = sees ? 0 : e.lost + dt; if (e.lost > 3) e.state = 'idle';
-        if (L > 4.8) move(tx / L * 3.2, ty / L * 3.2, tz / L * 3.2); else if (sees) { e.state = 'tele'; e.t = .55; SFX.skullTele(v); }
+        const rel = skullRel(e);
+        if (Math.abs(rel) > SKULL_ARC_START) skullOrbit(e, rel, tz, move);
+        else { e.orbit = 0; if (L > 4.8) move(tx / L * 3.2, ty / L * 3.2, tz / L * 3.2); else if (sees) { e.state = 'tele'; e.t = .55; SFX.skullTele(v); } }
       } else if (e.state === 'tele') {
-        if (e.t <= 0) { e.state = 'dash'; e.t = .6; e.hit = false; e.dx = tx / L; e.dy = ty / L; e.dz = tz / L; SFX.skullDash(v); }
+        if (Math.abs(skullRel(e)) > SKULL_ARC) e.state = 'approach'; // el jugador se giró: vuelve a rodearlo
+        else if (e.t <= 0) { e.state = 'dash'; e.t = .6; e.hit = false; e.dx = tx / L; e.dy = ty / L; e.dz = tz / L; SFX.skullDash(v); }
       } else if (e.state === 'dash') {
-        if (!move(e.dx * 11, e.dy * 11, e.dz * 11)) { e.state = 'stun'; e.t = 1; }
-        if (!e.hit && Math.hypot(st.px - e.x, st.py - e.y, chest - e.z) < .75) {
+        // Solo cuenta si llega de frente: lejos, por su posición; ya encima, porque viene contra la vista del jugador.
+        const dh = Math.hypot(e.x - st.px, e.y - st.py);
+        const fromFront = dh >= .5 ? Math.abs(skullRel(e)) <= SKULL_ARC : e.dx * Math.cos(st.pa) + e.dy * Math.sin(st.pa) < 0;
+        if (!fromFront) { e.state = 'recover'; e.t = .8; } // quedó detrás del jugador: aborta sin golpear
+        else if (!move(e.dx * 11, e.dy * 11, e.dz * 11)) { e.state = 'stun'; e.t = 1; }
+        if (fromFront && !e.hit && Math.hypot(st.px - e.x, st.py - e.y, chest - e.z) < .75) {
           e.hit = true;
           if (st.shieldT > 0) { SFX.block(); burst(e.x, e.y, e.z, 16, [rgb(95, 242, 230), rgb(255, 255, 255)], 2.5); e.state = 'stun'; e.t = 1.3; damageEnemy(e, 1); }
           else { hurtPlayer(15, e.dx * 7, e.dy * 7, 3.5); e.state = 'recover'; e.t = 1.2; }
