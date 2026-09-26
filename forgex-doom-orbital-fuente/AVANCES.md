@@ -255,6 +255,9 @@ JS, que es la de la v17 verificada. Rust sigue haciendo el render. El código de
 conectarlo bien exige que Rust conserve el estado entre pasos en lugar de recrearlo, además de corregir el fallo de
 `F_SHIP`. `pruebas/regression_gameplay.js` añade los escenarios 7–10 (salto y doble salto, caída libre real, reinicio
 tras morir y ataque de un imp) con el motor Rust.
+Los escenarios 1 y 2 anteriores solo pasaban gracias al fallo (el jugador flotaba sobre el vacío y el récord subía
+en las estructuras); se rehicieron sobre una pasarela propia y sobre una plataforma de la ruta. La prueba nueva
+falla en 5 de 10 escenarios con el build anterior y pasa en 6 de 6 ejecuciones con la corrección.
 
 ---
 

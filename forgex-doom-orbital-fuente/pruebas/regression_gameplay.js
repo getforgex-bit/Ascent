@@ -52,13 +52,27 @@ fs.mkdirSync(SALIDA, { recursive: true });
 
   let allPassed = true;
 
+  // Todos los escenarios se ejecutan con el motor Rust, el que se usa por defecto: ahí el salto se quedaba en
+  // 0,09 m y la caída al vacío no terminaba nunca. El mundo es aleatorio en cada carga, así que los escenarios que
+  // dependen de la geometría usan una pasarela propia (LANE) bajo el suelo de salida: más arriba, la poda del
+  // mundo (todo lo que queda 22 m por debajo del jugador) borraría las estructuras de los escenarios siguientes.
+  await page.evaluate(async () => {
+    await window.__doom.setBackend('rust');
+    window.__lane = () => {
+      const d = window.__doom, L = { x0: d.C - 20, y0: d.C + 40, w: 40, h: 3, z: -5 };
+      d.plat(L.x0, L.y0, L.w, L.h, L.z, .5, 5);
+      d.st.hp = 100; d.st.dead = false; d.st.enemies = []; d.st.proj = []; d.st.kx = d.st.ky = 0;
+      d.tp(L.x0 + .5, L.y0 + 1.5, L.z, 0);
+      return L;
+    };
+    window.__key = (c, ms = 30) => { window.dispatchEvent(new KeyboardEvent('keydown', { code: c })); setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code: c })), ms); };
+  });
+
   // ----------------------------------------------------
   // ESCENARIO 1: Andar 10s: no atascarse (stuck < 1.0)
   // ----------------------------------------------------
   console.log('--- Escenario 1: Andar 10s y verificar que no se atasca ---');
-  await page.evaluate(() => {
-    window.__doom.tp(266.5, 266.5, 0, 0);
-  });
+  await page.evaluate(() => { window.__lane(); });
   await page.keyboard.down('KeyW');
   // Esperar 10s mientras anda
   let maxStuck = 0;
@@ -88,21 +102,18 @@ fs.mkdirSync(SALIDA, { recursive: true });
   // ----------------------------------------------------
   // ESCENARIO 2: Subir hacia adelante: top >= 20m
   // ----------------------------------------------------
-  console.log('\n--- Escenario 2: Subir hacia adelante y verificar top >= 20m ---');
-  await page.evaluate(() => {
-    const d = window.__doom;
-    // Buscar una estructura/plataforma en altura >= 20m (zf >= 20.0 ó zf*10 >= 20)
-    const targetShip = d.ships.find(s => s.zf >= 20.0) || d.ships.find(s => s.zf >= 2.0);
-    if (targetShip) {
-      const x = targetShip.x0 + Math.floor(targetShip.w / 2) + 0.5;
-      const y = targetShip.y0 + Math.floor(targetShip.h / 2) + 0.5;
-      d.tp(x, y, targetShip.zf, 0);
-    }
+  console.log('\n--- Escenario 2: Aterrizar en la ruta sube el récord (top) ---');
+  // El récord solo sube en las plataformas de la ruta principal; las estructuras y ramas laterales no cuentan.
+  const route = await page.evaluate(() => {
+    const d = window.__doom, cells = d.cells;
+    let f = null;
+    for (let k = 0; k < cells.length; k++) { const c = cells[k]; if (!c) continue;
+      for (const b of c) if (b.route && !b.pad && b.zt >= 2 && (!f || b.zt > f.z)) f = { x: k % d.MW + .5, y: (k / d.MW | 0) + .5, z: b.zt }; }
+    if (!f) return null;
+    d.st.hp = 100; d.st.top = 0; d.tp(f.x, f.y, f.z + .3, 0);
+    return f;
   });
-  await page.keyboard.down('KeyW');
-  await page.waitForTimeout(2000);
-  await page.keyboard.up('KeyW');
-
+  await page.waitForTimeout(800);
   const s2 = await page.evaluate(() => ({
     top: window.__doom.st.top,
     topMeters: (window.__doom.st.top * 10),
@@ -111,10 +122,10 @@ fs.mkdirSync(SALIDA, { recursive: true });
   const snap2 = path.join(SALIDA, 'gameplay_2.png');
   await page.screenshot({ path: snap2, fullPage: true });
 
-  if (s2.top >= 2.0 || s2.topMeters >= 20) {
-    console.log(`✓ Escenario 2 superado (top=${s2.top.toFixed(1)}, metros=${Math.round(s2.topMeters)}m >= 20m, captura: ${path.basename(snap2)})`);
+  if (route && Math.abs(s2.top - route.z) < .01) {
+    console.log(`✓ Escenario 2 superado (top=${s2.top.toFixed(1)}, ${Math.round(s2.topMeters)} m en la plataforma de ruta, captura: ${path.basename(snap2)})`);
   } else {
-    console.error(`✗ FAIL Escenario 2: top insuficiente (${s2.top} / ${s2.topMeters}m)`);
+    console.error(`✗ FAIL Escenario 2: el récord no subió en la ruta (top=${s2.top}, plataforma=${route && route.z})`);
     allPassed = false;
   }
 
@@ -124,17 +135,19 @@ fs.mkdirSync(SALIDA, { recursive: true });
   console.log('\n--- Escenario 3: Entrar y salir de mazmorra (cambio de zona) ---');
   const d0 = await page.evaluate(() => {
     const d = window.__doom;
-    const ship = d.ships[0];
-    return {
-      x: ship.x0 + Math.floor(ship.w / 2) + 0.5,
-      y: ship.y0 + Math.floor(ship.h / 2) + 0.5,
-      zf: ship.zf,
-      name: ship.name
-    };
+    // una celda interior con suelo a la altura zf y sin nada encima (el centro puede ser un hueco o un objeto)
+    for (const ship of d.ships) for (let j = ship.y0 + 1; j < ship.y0 + ship.h - 1; j++) for (let i = ship.x0 + 1; i < ship.x0 + ship.w - 1; i++) {
+      const c = d.cells[j * d.MW + i] || [];
+      if (c.some(b => Math.abs(b.zt - ship.zf) < .01 && !b.acid) && !c.some(b => b.zb < ship.zf + 1.8 && b.zt > ship.zf + .05))
+        return { x: i + .5, y: j + .5, zf: ship.zf, name: ship.name };
+    }
+    return null;
   });
 
+  if (!d0) { console.error('✗ FAIL Escenario 3: ninguna estructura tiene una celda interior libre'); await browser.close(); process.exit(1); }
   // Entrar a la mazmorra
   await page.evaluate(dest => {
+    window.__doom.st.hp = 100;
     window.__doom.tp(dest.x, dest.y, dest.zf, 0);
   }, d0);
   await page.waitForTimeout(400);
@@ -270,34 +283,25 @@ fs.mkdirSync(SALIDA, { recursive: true });
     allPassed = false;
   }
 
-  // Los escenarios 7–10 usan solo teclas y la física real (sin fijar st.pz a mano) y se ejecutan con el
-  // motor Rust: ahí fue donde el salto se quedaba en 0,09 m y la caída al vacío no terminaba nunca.
-  await page.evaluate(async () => { await window.__doom.setBackend('rust'); });
-  const press = code => page.evaluate(c => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: c }));
-    setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code: c })), 30);
-  }, code);
-  const home = () => page.evaluate(() => {
-    const d = window.__doom;
-    d.st.enemies = []; d.st.proj = []; d.st.hp = 100; d.st.kx = d.st.ky = 0;
-    d.tp(d.C + .5, d.C + .5, 0, 0);
-  });
-  const maxRise = ms => page.evaluate(ms => new Promise(res => {
-    const st = window.__doom.st, z0 = st.pz; let mx = 0;
-    const iv = setInterval(() => { mx = Math.max(mx, st.pz - z0); }, 16);
-    setTimeout(() => { clearInterval(iv); res(mx); }, ms);
-  }), ms);
-
   // ----------------------------------------------------
   // ESCENARIO 7: Salto (≈1,3 m) y doble salto (≈2,6 m)
   // ----------------------------------------------------
   console.log('\n--- Escenario 7: Salto y doble salto ---');
-  await home(); await page.waitForTimeout(400);
-  const riseP = maxRise(1200); await press('Space');
-  const jump1 = await riseP;
-  await home(); await page.waitForTimeout(400);
-  const riseP2 = maxRise(1600); await press('Space'); await page.waitForTimeout(250); await press('Space');
-  const jump2 = await riseP2;
+  // Las esperas dependen del estado del juego, no del reloj: sin GPU el render por software va a pocos FPS y cada
+  // fotograma avanza como máximo 0,1 s de simulación, así que 1 s real puede ser bastante menos de juego.
+  const jumpTest = presses => page.evaluate(presses => new Promise(res => {
+    window.__lane();
+    const st = window.__doom.st, z0 = st.pz; let mx = 0, second = presses < 2, rose = false;
+    window.__key('Space');
+    const t0 = performance.now();
+    const iv = setInterval(() => {
+      mx = Math.max(mx, st.pz - z0); if (st.pz > z0 + .05) rose = true;
+      if (!second && st.jumps === 1 && st.vz <= 1) { second = true; window.__key('Space'); } // segundo salto cerca de la cima
+      if ((rose && second && st.ground) || performance.now() - t0 > 20000) { clearInterval(iv); res(mx); }
+    }, 10);
+  }), presses);
+  const jump1 = await jumpTest(1);
+  const jump2 = await jumpTest(2);
   if (jump1 >= 1.1 && jump2 >= 2.2) {
     console.log(`✓ Escenario 7 superado (salto=${jump1.toFixed(2)} m, doble salto=${jump2.toFixed(2)} m)`);
   } else {
@@ -309,15 +313,21 @@ fs.mkdirSync(SALIDA, { recursive: true });
   // ESCENARIO 8: Caída libre al vacío termina en el punto seguro
   // ----------------------------------------------------
   console.log('\n--- Escenario 8: Caída libre real hasta el punto seguro ---');
-  await home(); await page.waitForTimeout(300);
   const s8 = await page.evaluate(() => new Promise(res => {
-    const d = window.__doom, st = d.st;
-    d.tp(d.C + 60.5, d.C + 60.5, 30, 0);
-    st.cp = [d.C + .5, d.C + .5, 0];
-    const t0 = performance.now(), hp0 = st.hp;
+    const d = window.__doom, L = window.__lane(), st = d.st;
+    // una columna vacía por debajo de la pasarela, a partir de 5 m de su extremo
+    let x = null;
+    for (let i = L.x0 + L.w + 5; i < L.x0 + L.w + 60 && x === null; i++) {
+      const c = d.cells[(L.y0 + 1) * d.MW + i] || [];
+      if (!c.some(b => b.zb < L.z + 1)) x = i + .5;
+    }
+    if (x === null) return res({ back: false, ms: 0, hpLost: 0, why: 'sin columna vacía' });
+    const cp = [st.cp[0], st.cp[1], st.cp[2]], hp0 = st.hp;
+    st.px = x; st.py = L.y0 + 1.5; st.pz = L.z - .5; st.vz = 0; st.ox = undefined; // en el aire, junto a la pasarela
+    const t0 = performance.now();
     const iv = setInterval(() => {
-      const back = Math.hypot(st.px - st.cp[0], st.py - st.cp[1]) < 1 && Math.abs(st.pz - st.cp[2]) < .5;
-      if (back || performance.now() - t0 > 6000) { clearInterval(iv); res({ back, ms: Math.round(performance.now() - t0), hpLost: hp0 - st.hp }); }
+      const back = Math.hypot(st.px - cp[0], st.py - cp[1]) < 1 && Math.abs(st.pz - cp[2]) < .5;
+      if (back || performance.now() - t0 > 20000) { clearInterval(iv); res({ back, ms: Math.round(performance.now() - t0), hpLost: hp0 - st.hp }); }
     }, 16);
   }));
   if (s8.back && s8.hpLost > 0) {
@@ -331,11 +341,11 @@ fs.mkdirSync(SALIDA, { recursive: true });
   // ESCENARIO 9: Morir y reiniciar con R deja al jugador vivo
   // ----------------------------------------------------
   console.log('\n--- Escenario 9: Reinicio tras morir ---');
-  await home();
+  await page.evaluate(() => { window.__lane(); });
   await page.evaluate(() => { const st = window.__doom.st; st.hp = 1; st.proj.push({ x: st.px, y: st.py, z: st.pz + .5, vx: 0, vy: 0, vz: 0, life: 1, dmg: 50, kind: 'fire' }); });
   await page.waitForTimeout(500);
   const died = await page.evaluate(() => window.__doom.st.dead);
-  await press('KeyR'); await page.waitForTimeout(800);
+  await page.evaluate(() => window.__key('KeyR')); await page.waitForTimeout(800);
   const s9 = await page.evaluate(() => ({ dead: window.__doom.st.dead, hp: window.__doom.st.hp }));
   if (died && !s9.dead && s9.hp > 0) {
     console.log(`✓ Escenario 9 superado (murió y reinició con hp=${s9.hp})`);
@@ -348,15 +358,16 @@ fs.mkdirSync(SALIDA, { recursive: true });
   // ESCENARIO 10: Un imp dispara y sus bolas de fuego avanzan
   // ----------------------------------------------------
   console.log('\n--- Escenario 10: Ataque de un imp ---');
-  await home();
   const s10 = await page.evaluate(() => new Promise(res => {
-    const d = window.__doom, st = d.st; d.spawn('imp', st.px + 5, st.py, 0);
-    let shots = 0, moved = false, lastX = null;
+    const d = window.__doom, L = window.__lane(), st = d.st; d.spawn('imp', L.x0 + 8.5, L.y0 + 1.5, L.z);
+    let shots = 0, moved = false, lastX = null; const hp0 = st.hp;
+    const t0 = performance.now();
     const iv = setInterval(() => {
       shots = Math.max(shots, st.proj.length);
       if (st.proj[0]) { if (lastX !== null && st.proj[0].x !== lastX) moved = true; lastX = st.proj[0].x; }
-    }, 30);
-    setTimeout(() => { clearInterval(iv); res({ shots, moved }); }, 6000);
+      if (shots && st.hp < hp0) moved = true; // llegó hasta el jugador
+      if ((shots && moved) || performance.now() - t0 > 30000) { clearInterval(iv); res({ shots, moved }); }
+    }, 10);
   }));
   if (s10.shots > 0 && s10.moved) {
     console.log('✓ Escenario 10 superado (el imp disparó y el proyectil avanzó)');
@@ -364,7 +375,7 @@ fs.mkdirSync(SALIDA, { recursive: true });
     console.error(`✗ FAIL Escenario 10: el imp no atacó (proyectiles=${s10.shots}, avanzan=${s10.moved})`);
     allPassed = false;
   }
-  await home();
+  await page.evaluate(() => { window.__lane(); });
 
   await browser.close();
 

@@ -100,19 +100,28 @@ El script `run_all.sh` retornará código de salida `0` si todas las pruebas pas
   ```
 - **Qué hacer si falla:** Si falla por calidad gráfica, inspeccionar shaders WGSL en `forgex/src/shaders/`. Si se ejecuta en un entorno sin soporte de WebGPU (como CI sin GPU), la prueba lo detectará automáticamente y registrará `[SKIP]` con código de salida `0`.
 
-### 2.11 `regression_gameplay.js` — 6 Escenarios Críticos de Gameplay
-- **Qué verifica:** Valida mediante Playwright que 6 mecánicas fundamentales permanezcan operativas:
-  1. Andar durante 10 segundos continuos sin atascarse (`stuck < 1.0`).
-  2. Ascender hacia adelante por la torre alcanzando una altura récord de `top >= 20m`.
+### 2.11 `regression_gameplay.js` — 10 Escenarios Críticos de Gameplay
+- **Qué verifica:** Valida mediante Playwright, con el motor Rust (el predeterminado), que estas mecánicas sigan funcionando:
+  1. Andar 10 segundos por una pasarela sin atascarse (`stuck < 1.0`) ni morir.
+  2. Aterrizar en una plataforma de la ruta sube el récord (`top`); las estructuras y ramas laterales no cuentan.
   3. Entrar a una mazmorra/estructura y salir, verificando el cambio de zona y su restauración.
   4. Rotar el ángulo de visión vertical en todo el rango `look` de [-0.85, 0.85].
   5. Curarse al estar quieto en reposo (consumo de reserva y aumento de vida).
   6. Caer al vacío, recibir daño por caída y reaparecer de forma segura en el último checkpoint.
+  7. Salto (≥ 1,1 m) y doble salto (≥ 2,2 m) con la tecla Espacio.
+  8. Caída libre real (sin fijar `st.pz` a mano) que termina en el punto seguro con daño.
+  9. Morir y reiniciar con R deja al jugador vivo.
+  10. Un imp dispara y su proyectil avanza hasta el jugador.
+- **Cómo está hecha:** el mundo es aleatorio en cada carga, así que los escenarios 1 y 7–10 usan una pasarela propia a
+  −5 m (más arriba, la poda del mundo borraría las estructuras de los demás escenarios). Las esperas dependen del estado
+  del juego y no del reloj: sin GPU el render por software va a pocos FPS y cada fotograma avanza como máximo 0,1 s de
+  simulación.
 - **Cómo ejecutarla:**
   ```bash
   node pruebas/regression_gameplay.js
   ```
-- **Qué hacer si falla:** Revisar la sincronización de estado entre JS y Rust en `100-bucle-principal.js` y `075-fisica-del-jugador.js`. Las capturas visuales de cada escenario se guardan en `salida/gameplay_<N>.png`.
+- **Qué hacer si falla:** Revisar la física y la IA en `075-fisica-del-jugador.js`, `080-enemigos.js` y el paso de
+  simulación en `100-bucle-principal.js`. Las capturas de los escenarios 1–6 se guardan en `salida/gameplay_<N>.png`.
 
 ### 2.12 `chunk_test.js` & `streaming_test.js` — Chunks y Streaming Espacial
 - **Qué verifica:** Estructura espacial de 2312 chunks (17x17x8), asignación de estados en WASM (`chunk_state`), funciones de mapeo de coordenadas (`chunkOf`), carga de catálogo y expulsión (`Evicted`) según radio de streaming alrededor del jugador.
