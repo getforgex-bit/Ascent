@@ -1,4 +1,4 @@
-// Test de regresión de gameplay (Plan E3): 6 escenarios críticos
+// Test de regresión de gameplay (Plan E3): 10 escenarios críticos
 let chromium;
 try {
   ({ chromium } = require('playwright'));
@@ -14,7 +14,7 @@ const SALIDA = path.join(__dirname, 'salida');
 fs.mkdirSync(SALIDA, { recursive: true });
 
 (async () => {
-  console.log('=== TEST REGRESSION_GAMEPLAY: 6 Escenarios Críticos ===\n');
+  console.log('=== TEST REGRESSION_GAMEPLAY: 10 Escenarios Críticos ===\n');
 
   let browser;
   try {
@@ -269,6 +269,102 @@ fs.mkdirSync(SALIDA, { recursive: true });
     console.error(`✗ FAIL Escenario 6: no respawneó o no tomó daño (hp=${s6.hp}, lock=${s6.healLock}, atCp=${atCheckpoint}, pos=[${s6.px}, ${s6.py}, ${s6.pz}])`);
     allPassed = false;
   }
+
+  // Los escenarios 7–10 usan solo teclas y la física real (sin fijar st.pz a mano) y se ejecutan con el
+  // motor Rust: ahí fue donde el salto se quedaba en 0,09 m y la caída al vacío no terminaba nunca.
+  await page.evaluate(async () => { await window.__doom.setBackend('rust'); });
+  const press = code => page.evaluate(c => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: c }));
+    setTimeout(() => window.dispatchEvent(new KeyboardEvent('keyup', { code: c })), 30);
+  }, code);
+  const home = () => page.evaluate(() => {
+    const d = window.__doom;
+    d.st.enemies = []; d.st.proj = []; d.st.hp = 100; d.st.kx = d.st.ky = 0;
+    d.tp(d.C + .5, d.C + .5, 0, 0);
+  });
+  const maxRise = ms => page.evaluate(ms => new Promise(res => {
+    const st = window.__doom.st, z0 = st.pz; let mx = 0;
+    const iv = setInterval(() => { mx = Math.max(mx, st.pz - z0); }, 16);
+    setTimeout(() => { clearInterval(iv); res(mx); }, ms);
+  }), ms);
+
+  // ----------------------------------------------------
+  // ESCENARIO 7: Salto (≈1,3 m) y doble salto (≈2,6 m)
+  // ----------------------------------------------------
+  console.log('\n--- Escenario 7: Salto y doble salto ---');
+  await home(); await page.waitForTimeout(400);
+  const riseP = maxRise(1200); await press('Space');
+  const jump1 = await riseP;
+  await home(); await page.waitForTimeout(400);
+  const riseP2 = maxRise(1600); await press('Space'); await page.waitForTimeout(250); await press('Space');
+  const jump2 = await riseP2;
+  if (jump1 >= 1.1 && jump2 >= 2.2) {
+    console.log(`✓ Escenario 7 superado (salto=${jump1.toFixed(2)} m, doble salto=${jump2.toFixed(2)} m)`);
+  } else {
+    console.error(`✗ FAIL Escenario 7: salto demasiado bajo (salto=${jump1.toFixed(2)} m, doble=${jump2.toFixed(2)} m)`);
+    allPassed = false;
+  }
+
+  // ----------------------------------------------------
+  // ESCENARIO 8: Caída libre al vacío termina en el punto seguro
+  // ----------------------------------------------------
+  console.log('\n--- Escenario 8: Caída libre real hasta el punto seguro ---');
+  await home(); await page.waitForTimeout(300);
+  const s8 = await page.evaluate(() => new Promise(res => {
+    const d = window.__doom, st = d.st;
+    d.tp(d.C + 60.5, d.C + 60.5, 30, 0);
+    st.cp = [d.C + .5, d.C + .5, 0];
+    const t0 = performance.now(), hp0 = st.hp;
+    const iv = setInterval(() => {
+      const back = Math.hypot(st.px - st.cp[0], st.py - st.cp[1]) < 1 && Math.abs(st.pz - st.cp[2]) < .5;
+      if (back || performance.now() - t0 > 6000) { clearInterval(iv); res({ back, ms: Math.round(performance.now() - t0), hpLost: hp0 - st.hp }); }
+    }, 16);
+  }));
+  if (s8.back && s8.hpLost > 0) {
+    console.log(`✓ Escenario 8 superado (volvió al punto seguro en ${s8.ms} ms, −${s8.hpLost} de vida)`);
+  } else {
+    console.error(`✗ FAIL Escenario 8: la caída no terminó en el punto seguro (vuelta=${s8.back}, ${s8.ms} ms, vida perdida=${s8.hpLost})`);
+    allPassed = false;
+  }
+
+  // ----------------------------------------------------
+  // ESCENARIO 9: Morir y reiniciar con R deja al jugador vivo
+  // ----------------------------------------------------
+  console.log('\n--- Escenario 9: Reinicio tras morir ---');
+  await home();
+  await page.evaluate(() => { const st = window.__doom.st; st.hp = 1; st.proj.push({ x: st.px, y: st.py, z: st.pz + .5, vx: 0, vy: 0, vz: 0, life: 1, dmg: 50, kind: 'fire' }); });
+  await page.waitForTimeout(500);
+  const died = await page.evaluate(() => window.__doom.st.dead);
+  await press('KeyR'); await page.waitForTimeout(800);
+  const s9 = await page.evaluate(() => ({ dead: window.__doom.st.dead, hp: window.__doom.st.hp }));
+  if (died && !s9.dead && s9.hp > 0) {
+    console.log(`✓ Escenario 9 superado (murió y reinició con hp=${s9.hp})`);
+  } else {
+    console.error(`✗ FAIL Escenario 9: reinicio incorrecto (murió=${died}, sigue muerto=${s9.dead}, hp=${s9.hp})`);
+    allPassed = false;
+  }
+
+  // ----------------------------------------------------
+  // ESCENARIO 10: Un imp dispara y sus bolas de fuego avanzan
+  // ----------------------------------------------------
+  console.log('\n--- Escenario 10: Ataque de un imp ---');
+  await home();
+  const s10 = await page.evaluate(() => new Promise(res => {
+    const d = window.__doom, st = d.st; d.spawn('imp', st.px + 5, st.py, 0);
+    let shots = 0, moved = false, lastX = null;
+    const iv = setInterval(() => {
+      shots = Math.max(shots, st.proj.length);
+      if (st.proj[0]) { if (lastX !== null && st.proj[0].x !== lastX) moved = true; lastX = st.proj[0].x; }
+    }, 30);
+    setTimeout(() => { clearInterval(iv); res({ shots, moved }); }, 6000);
+  }));
+  if (s10.shots > 0 && s10.moved) {
+    console.log('✓ Escenario 10 superado (el imp disparó y el proyectil avanzó)');
+  } else {
+    console.error(`✗ FAIL Escenario 10: el imp no atacó (proyectiles=${s10.shots}, avanzan=${s10.moved})`);
+    allPassed = false;
+  }
+  await home();
 
   await browser.close();
 

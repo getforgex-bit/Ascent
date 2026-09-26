@@ -1938,30 +1938,6 @@
 
   // ================= DISPARO =================
   function hitscan(off, dmg, pierce, range) {
-    if (BACKEND !== 'js' && wasm && wasm.sim_hitscan) {
-      if (wasm.sim_set_player) wasm.sim_set_player(st.px, st.py, st.pz, st.pa, st.look, st.hp, st.reserve);
-      wasm.sim_reset_entities();
-      const alive = [];
-      for (const e of st.enemies) {
-        if (e.dead) continue;
-        const k = e.type === 'imp' ? 0 : e.type === 'skull' ? 1 : 2;
-        const id = wasm.sim_spawn(k, e.x, e.y, e.z);
-        if (id) {
-          wasm.sim_set_entity(id, k, e.x, e.y, e.z, e.hp);
-          alive.push(e);
-        }
-      }
-      const resPtr = wasm.sim_hitscan(off, 0, pierce ? 1 : 0, range);
-      const B = wasm.memory.buffer;
-      const count = new Uint32Array(B, resPtr, 1)[0];
-      const ids = new Uint32Array(B, resPtr + 4, count);
-      for (let i = 0; i < count; i++) {
-        const id = ids[i];
-        const target = alive[id - 1];
-        if (target) damageEnemy(target, dmg);
-      }
-      return;
-    }
     const a = st.pa + off, ca = Math.cos(a), sa = Math.sin(a), hits = [], camZ = st.pz + EYE;
     for (const e of st.enemies) {
       if (e.dead) continue;
@@ -1995,20 +1971,7 @@
   const REGEN_RESET = 15;
   function regenStep(n) { let a = .2, b = .3; if (n === 0) return .1; if (n === 1) return .2; for (let k = 2; k < n; k++) [a, b] = [b, +(a + b).toFixed(4)]; return b; }
 
-  function packKeys(k) {
-    let m = 0;
-    if (k.KeyW) m |= 1;
-    if (k.KeyA) m |= 2;
-    if (k.KeyS) m |= 4;
-    if (k.KeyD) m |= 8;
-    if (k.ArrowLeft) m |= 16;
-    if (k.ArrowRight) m |= 32;
-    if (k.ArrowUp) m |= 64;
-    if (k.ArrowDown) m |= 128;
-    return m;
-  }
-
-  function jsPhysics(dt) {
+  function physics(dt) {
     // (la cámara se gira en applyLook, una vez por fotograma)
     const dx = Math.cos(st.pa), dy = Math.sin(st.pa);
     const fwd = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
@@ -2081,46 +2044,6 @@
     }
   }
 
-  function physics(dt) {
-    if (BACKEND === 'js' || !wasm || !wasm.sim_step) {
-      jsPhysics(dt);
-      return;
-    }
-    const fwd = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
-    const str = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
-    const moving = fwd || str;
-    if (moving && st.ground) st.bob += dt * 10;
-    if (jumpReq && st.jumps === 1) burst(st.px, st.py, st.pz, 10, [rgb(95, 242, 230), rgb(200, 255, 255)], 1.5);
-
-    wasm.sim_input(mdx, mdy, packKeys(keys), jumpReq ? 1 : 0, fireHeld ? 1 : 0);
-    wasm.sim_step(dt);
-
-    const ptr = wasm.sim_state();
-    const S = new Float32Array(wasm.memory.buffer, ptr, 30);
-    const U = new Uint32Array(wasm.memory.buffer, ptr, 30);
-
-    const oldPz = st.pz, oldHp = st.hp;
-    st.px = S[0]; st.py = S[1]; st.pz = S[2];
-    st.vz = S[3]; st.pa = S[4]; st.look = S[5];
-    st.ground = U[6] !== 0; st.jumps = U[7]; st.stuck = S[8];
-    st.kx = S[9]; st.ky = S[10];
-    st.hp = S[11]; st.reserve = S[12]; st.healLock = S[13];
-    st.regenN = U[14]; st.regenT = S[15]; st.regenIdle = S[16];
-    st.regenPend = U[17]; st.regenDrip = S[18];
-    st.cp = [S[19], S[20], S[21]];
-    st.top = S[22]; st.dead = U[23] !== 0;
-    st.shieldT = S[24]; st.shieldCd = S[25];
-
-    if (st.dead && oldHp > 0) die();
-    if (oldHp - st.hp >= FALL_DMG - 1 && st.healLock >= FALL_LOCK - 1) {
-      SFX.fall();
-      st.dmg = .6;
-      msg(`Caíste al vacío: −${FALL_DMG} de vida. Curación bloqueada ${FALL_LOCK} s.`, '#ff8a7a');
-    }
-
-    mdx = mdy = 0;
-    jumpReq = false;
-  }
   // ================= ENEMIGOS =================
   function stepEnemy(e, dt) { // devuelve true si la criatura terminó de desaparecer
     const camZ = st.pz + EYE, chest = st.pz + .5;
@@ -2192,41 +2115,6 @@
   // las que están a media distancia y tranquilas acumulan su tiempo y se actualizan a la frecuencia de la
   // «IA lejana». Más allá de 28 m ya estaban congeladas (solo se enfrían sus golpes recibidos).
   function updateEnemies(dt) {
-    if (BACKEND !== 'js' && wasm && wasm.sim_update_enemies) {
-      if (wasm.sim_set_player) wasm.sim_set_player(st.px, st.py, st.pz, st.pa, st.look, st.hp, st.reserve);
-      wasm.sim_reset_entities();
-      for (const e of st.enemies) {
-        const k = e.type === 'imp' ? 0 : e.type === 'skull' ? 1 : 2;
-        const id = wasm.sim_spawn(k, e.x, e.y, e.z);
-        if (id) wasm.sim_set_entity(id, k, e.x, e.y, e.z, e.hp);
-      }
-      wasm.sim_update_enemies(dt);
-      const B = wasm.memory.buffer;
-      const P_SCRATCH = 0x20000;
-      const data = new Float32Array(B, P_SCRATCH, 9);
-      let gone = false;
-      for (let i = 0; i < st.enemies.length; i++) {
-        const e = st.enemies[i];
-        wasm.sim_get_entity(i + 1, P_SCRATCH);
-        if (data[0] === 0) { gone = true; continue; }
-        e.x = data[2];
-        e.y = data[3];
-        e.z = data[4];
-        e.hp = data[5];
-        e.hurt = data[6];
-        if (data[7] > 0) { e.dead = true; e.deadT = data[7]; }
-      }
-      if (gone) st.enemies = st.enemies.filter(e => !(e.dead && e.type !== 'imp' && e.deadT > .55));
-      st.skullT -= dt;
-      if (st.skullT <= 0) {
-        st.skullT = rnd(22, 40) * Math.max(.45, 1 - st.pz / 150);
-        if (st.pz > 4 && st.enemies.filter(e => e.type === 'skull').length < 3) {
-          const a = rnd(0, TAU), r = rnd(9, 12), x = clamp(st.px + Math.cos(a) * r, 1, MW - 2), y = clamp(st.py + Math.sin(a) * r, 1, MH - 2), z = st.pz + rnd(-1, 3);
-          if (!solidAt(x, y, z)) { spawn('skull', x, y, z); SFX.distant(); }
-        }
-      }
-      return;
-    }
     const C_ = PERF.c, lod = CFG.perf.lod, farDt = 1 / CFG.perf.aiHz, chest = st.pz + .5;
     C_.aiFull = C_.aiLod = C_.aiFrozen = 0;
     let gone = false;
@@ -2253,14 +2141,6 @@
     }
   }
   function updateProjectiles(dt) {
-    if (BACKEND !== 'js' && wasm && wasm.sim_update_projectiles) {
-      wasm.sim_reset_projectiles();
-      for (const b of st.proj) {
-        const k = b.kind === 'fire' ? 0 : 1;
-        wasm.sim_spawn_projectile(k, b.x, b.y, b.z, b.vx, b.vy, b.vz, b.dmg, b.life);
-      }
-      wasm.sim_update_projectiles(dt);
-    }
     const chest = st.pz + .5;
     for (const b of st.proj) {
       b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; b.life -= dt;
@@ -2276,39 +2156,6 @@
     { let out = 0; for (let i = 0; i < st.proj.length; i++) if (st.proj[i].life > 0) st.proj[out++] = st.proj[i]; st.proj.length = out; }
   }
   function updateItems(dt) {
-    if (BACKEND !== 'js' && wasm && wasm.sim_update_items) {
-      wasm.sim_reset_items();
-      const falling = [];
-      for (const it of st.items) {
-        if (!it.ground) {
-          wasm.sim_add_item(0, it.x, it.y, it.z, it.vx, it.vy, it.vz);
-          falling.push(it);
-        }
-      }
-      wasm.sim_update_items(dt);
-      const B = wasm.memory.buffer;
-      const P_SCRATCH = 0x20000;
-      const data = new Float32Array(B, P_SCRATCH, 9);
-      for (let i = 0; i < falling.length; i++) {
-        const it = falling[i];
-        wasm.sim_get_item(i + 1, P_SCRATCH);
-        it.x = data[2];
-        it.y = data[3];
-        it.z = data[4];
-        it.vx = data[5];
-        it.vy = data[6];
-        it.vz = data[7];
-        if (data[8] > 0.5) it.ground = true;
-      }
-      let near = null, nd = 1.25;
-      for (const it of st.items) {
-        if ((it.kind === 'crate' && it.open) || it.kind === 'beacon') continue;
-        const d = Math.hypot(it.x - st.px, it.y - st.py);
-        if (d < nd && Math.abs(it.z - st.pz) < 1.2) { nd = d; near = it; }
-      }
-      st.near = near;
-      return;
-    }
     for (const it of st.items) {
       if (it.ground) continue;
       it.vz -= GRAV * dt;
@@ -3128,113 +2975,11 @@
   // ---- un paso de simulación ----
   function simStep(dt) {
     savePrev();
-    if (BACKEND !== 'js' && wasm && wasm.sim_step) {
-      // Sincronizar st hacia Rust SIM y entidades antes del paso (preservando checkpoint)
-      const cpX = st.cp ? st.cp[0] : st.px, cpY = st.cp ? st.cp[1] : st.py, cpZ = st.cp ? st.cp[2] : st.pz;
-      wasm.sim_set_player(st.px, st.py, st.pz, st.pa, st.look, st.hp, st.reserve);
-      if (wasm.sim_state) {
-        const F = new Float32Array(wasm.memory.buffer, wasm.sim_state(), 30);
-        if (st.cp) { F[19] = cpX; F[20] = cpY; F[21] = cpZ; }
-        if (st.healLock !== undefined) F[13] = st.healLock;
-      }
-      wasm.sim_reset_entities();
-      for (const e of st.enemies) {
-        const k = e.type === 'imp' ? 0 : e.type === 'skull' ? 1 : 2;
-        const id = wasm.sim_spawn(k, e.x, e.y, e.z);
-        if (id) wasm.sim_set_entity(id, k, e.x, e.y, e.z, e.hp);
-      }
-      wasm.sim_reset_projectiles();
-      for (const b of st.proj) {
-        const k = b.kind === 'fire' ? 0 : 1;
-        wasm.sim_spawn_projectile(k, b.x, b.y, b.z, b.vx, b.vy, b.vz, b.dmg, b.life);
-      }
-      wasm.sim_reset_items();
-      for (const it of st.items) {
-        if (!it.ground) {
-          wasm.sim_add_item(0, it.x, it.y, it.z, it.vx, it.vy, it.vz);
-        }
-      }
-
-      const fwd = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
-      const str = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
-      const moving = fwd || str;
-      if (moving && st.ground) st.bob += dt * 10;
-      if (jumpReq && st.jumps === 1) burst(st.px, st.py, st.pz, 10, [rgb(95, 242, 230), rgb(200, 255, 255)], 1.5);
-
-      wasm.sim_input(mdx, mdy, packKeys(keys), jumpReq ? 1 : 0, fireHeld ? 1 : 0);
-      mdx = mdy = 0;
-      jumpReq = false;
-
-      const ta = performance.now();
-      wasm.sim_step(dt);
-      simAi += performance.now() - ta;
-
-      // Sincronizar Rust SIM y entidades hacia st después del paso
-      const ptr = wasm.sim_state();
-      const S = new Float32Array(wasm.memory.buffer, ptr, 30);
-      const U = new Uint32Array(wasm.memory.buffer, ptr, 30);
-
-      const oldHp = st.hp;
-      st.px = S[0]; st.py = S[1]; st.pz = S[2];
-      st.vz = S[3]; st.pa = S[4]; st.look = S[5];
-      st.ground = U[6] !== 0; st.jumps = U[7]; st.stuck = S[8];
-      st.kx = S[9]; st.ky = S[10];
-      st.hp = S[11]; st.reserve = S[12]; st.healLock = S[13];
-      st.regenN = U[14]; st.regenT = S[15]; st.regenIdle = S[16];
-      st.regenPend = U[17]; st.regenDrip = S[18];
-      st.cp[0] = S[19]; st.cp[1] = S[20]; st.cp[2] = S[21];
-      st.top = S[22]; st.dead = U[23] !== 0;
-      st.shieldT = S[24]; st.shieldCd = S[25];
-
-      if (st.dead && oldHp > 0) die();
-      if (oldHp - st.hp >= FALL_DMG - 1 && st.healLock >= FALL_LOCK - 1) {
-        SFX.fall();
-        st.dmg = .6;
-        msg(`Caíste al vacío: −${FALL_DMG} de vida. Curación bloqueada ${FALL_LOCK} s.`, '#ff8a7a');
-      }
-
-      // Sincronizar entidades
-      const B = wasm.memory.buffer;
-      const P_SCRATCH = 0x20000;
-      const data = new Float32Array(B, P_SCRATCH, 9);
-      let gone = false;
-      for (let i = 0; i < st.enemies.length; i++) {
-        const e = st.enemies[i];
-        wasm.sim_get_entity(i + 1, P_SCRATCH);
-        if (data[0] === 0) { gone = true; continue; }
-        e.x = data[2]; e.y = data[3]; e.z = data[4];
-        e.hp = data[5]; e.hurt = data[6];
-        if (data[7] > 0) { e.dead = true; e.deadT = data[7]; }
-      }
-      if (gone) st.enemies = st.enemies.filter(e => !(e.dead && e.type !== 'imp' && e.deadT > .55));
-
-      // Sincronizar ítems en caída
-      let itemIdx = 1;
-      for (const it of st.items) {
-        if (!it.ground) {
-          wasm.sim_get_item(itemIdx++, P_SCRATCH);
-          it.x = data[2]; it.y = data[3]; it.z = data[4];
-          it.vx = data[5]; it.vy = data[6]; it.vz = data[7];
-          if (data[8] > 0.5) it.ground = true;
-        }
-      }
-      let near = null, nd = 1.25;
-      for (const it of st.items) {
-        if ((it.kind === 'crate' && it.open) || it.kind === 'beacon') continue;
-        const d = Math.hypot(it.x - st.px, it.y - st.py);
-        if (d < nd && Math.abs(it.z - st.pz) < 1.2) { nd = d; near = it; }
-      }
-      st.near = near;
-
-      st.cd -= dt; st.shieldT = Math.max(0, st.shieldT - dt); st.shieldCd = Math.max(0, st.shieldCd - dt);
-      if (fireHeld && st.cd <= 0) shoot();
-    } else {
-      physics(dt);
-      st.cd -= dt; st.shieldT = Math.max(0, st.shieldT - dt); st.shieldCd = Math.max(0, st.shieldCd - dt);
-      if (fireHeld && st.cd <= 0) shoot();
-      const ta = performance.now(); updateEnemies(dt); simAi += performance.now() - ta;
-      updateProjectiles(dt); updateItems(dt);
-    }
+    physics(dt);
+    st.cd -= dt; st.shieldT = Math.max(0, st.shieldT - dt); st.shieldCd = Math.max(0, st.shieldCd - dt);
+    if (fireHeld && st.cd <= 0) shoot();
+    const ta = performance.now(); updateEnemies(dt); simAi += performance.now() - ta;
+    updateProjectiles(dt); updateItems(dt);
     st.ambT -= dt; if (st.ambT <= 0) { SFX.distant(); st.ambT = rnd(9, 22) * (1 - .5 * Math.min(1, axisT(st.px, st.py))); }
     { const bi = bandOf(st.px, st.py); if (bi > st.band) msg(`Te alejas del eje: ${BANDS[bi][2].toLowerCase()}.`, BAND_COL[bi]); st.band = bi; }
     if (st.hp < st.maxHp * .3) { st.hbT -= dt; if (st.hbT <= 0) { SFX.heart(); st.hbT = .95; } }
@@ -3436,7 +3181,6 @@
     uploadAssets(X); syncWorld(X);
     if (ATL.used) atlasTo(X, 0, ATL.used);
     syncConfigToRust(X);
-    if (X.sim_set_player && typeof st !== 'undefined') X.sim_set_player(st.px, st.py, st.pz, st.pa, st.look, st.hp, st.reserve);
     return X;
   }
   // Carga la variante Rust que corresponde a la configuración (SIMD si se puede y está activado)
@@ -3527,14 +3271,6 @@
     tp: (x, y, z, a) => {
       st.px = x; st.py = y; st.pz = z; st.pa = a; st.vz = 0; st.ox = undefined; started = true;
       st.cp = [x, y, z]; st.healLock = 0;
-      if (wasm && wasm.sim_set_player) {
-        wasm.sim_set_player(x, y, z, a, st.look, st.hp, st.reserve);
-        if (wasm.sim_state) {
-          const F = new Float32Array(wasm.memory.buffer, wasm.sim_state(), 30);
-          const U = new Uint32Array(wasm.memory.buffer, wasm.sim_state(), 30);
-          F[13] = 0; F[19] = x; F[20] = y; F[21] = z; U[6] = 1;
-        }
-      }
     } };
   // ================= HILOS DE RENDER (Web Workers) =================
   // Con el motor Rust, la imagen se puede repartir en franjas verticales entre varios hilos. Cada hilo tiene su propia

@@ -69,41 +69,6 @@
   // las que están a media distancia y tranquilas acumulan su tiempo y se actualizan a la frecuencia de la
   // «IA lejana». Más allá de 28 m ya estaban congeladas (solo se enfrían sus golpes recibidos).
   function updateEnemies(dt) {
-    if (BACKEND !== 'js' && wasm && wasm.sim_update_enemies) {
-      if (wasm.sim_set_player) wasm.sim_set_player(st.px, st.py, st.pz, st.pa, st.look, st.hp, st.reserve);
-      wasm.sim_reset_entities();
-      for (const e of st.enemies) {
-        const k = e.type === 'imp' ? 0 : e.type === 'skull' ? 1 : 2;
-        const id = wasm.sim_spawn(k, e.x, e.y, e.z);
-        if (id) wasm.sim_set_entity(id, k, e.x, e.y, e.z, e.hp);
-      }
-      wasm.sim_update_enemies(dt);
-      const B = wasm.memory.buffer;
-      const P_SCRATCH = 0x20000;
-      const data = new Float32Array(B, P_SCRATCH, 9);
-      let gone = false;
-      for (let i = 0; i < st.enemies.length; i++) {
-        const e = st.enemies[i];
-        wasm.sim_get_entity(i + 1, P_SCRATCH);
-        if (data[0] === 0) { gone = true; continue; }
-        e.x = data[2];
-        e.y = data[3];
-        e.z = data[4];
-        e.hp = data[5];
-        e.hurt = data[6];
-        if (data[7] > 0) { e.dead = true; e.deadT = data[7]; }
-      }
-      if (gone) st.enemies = st.enemies.filter(e => !(e.dead && e.type !== 'imp' && e.deadT > .55));
-      st.skullT -= dt;
-      if (st.skullT <= 0) {
-        st.skullT = rnd(22, 40) * Math.max(.45, 1 - st.pz / 150);
-        if (st.pz > 4 && st.enemies.filter(e => e.type === 'skull').length < 3) {
-          const a = rnd(0, TAU), r = rnd(9, 12), x = clamp(st.px + Math.cos(a) * r, 1, MW - 2), y = clamp(st.py + Math.sin(a) * r, 1, MH - 2), z = st.pz + rnd(-1, 3);
-          if (!solidAt(x, y, z)) { spawn('skull', x, y, z); SFX.distant(); }
-        }
-      }
-      return;
-    }
     const C_ = PERF.c, lod = CFG.perf.lod, farDt = 1 / CFG.perf.aiHz, chest = st.pz + .5;
     C_.aiFull = C_.aiLod = C_.aiFrozen = 0;
     let gone = false;
@@ -130,14 +95,6 @@
     }
   }
   function updateProjectiles(dt) {
-    if (BACKEND !== 'js' && wasm && wasm.sim_update_projectiles) {
-      wasm.sim_reset_projectiles();
-      for (const b of st.proj) {
-        const k = b.kind === 'fire' ? 0 : 1;
-        wasm.sim_spawn_projectile(k, b.x, b.y, b.z, b.vx, b.vy, b.vz, b.dmg, b.life);
-      }
-      wasm.sim_update_projectiles(dt);
-    }
     const chest = st.pz + .5;
     for (const b of st.proj) {
       b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; b.life -= dt;
@@ -153,39 +110,6 @@
     { let out = 0; for (let i = 0; i < st.proj.length; i++) if (st.proj[i].life > 0) st.proj[out++] = st.proj[i]; st.proj.length = out; }
   }
   function updateItems(dt) {
-    if (BACKEND !== 'js' && wasm && wasm.sim_update_items) {
-      wasm.sim_reset_items();
-      const falling = [];
-      for (const it of st.items) {
-        if (!it.ground) {
-          wasm.sim_add_item(0, it.x, it.y, it.z, it.vx, it.vy, it.vz);
-          falling.push(it);
-        }
-      }
-      wasm.sim_update_items(dt);
-      const B = wasm.memory.buffer;
-      const P_SCRATCH = 0x20000;
-      const data = new Float32Array(B, P_SCRATCH, 9);
-      for (let i = 0; i < falling.length; i++) {
-        const it = falling[i];
-        wasm.sim_get_item(i + 1, P_SCRATCH);
-        it.x = data[2];
-        it.y = data[3];
-        it.z = data[4];
-        it.vx = data[5];
-        it.vy = data[6];
-        it.vz = data[7];
-        if (data[8] > 0.5) it.ground = true;
-      }
-      let near = null, nd = 1.25;
-      for (const it of st.items) {
-        if ((it.kind === 'crate' && it.open) || it.kind === 'beacon') continue;
-        const d = Math.hypot(it.x - st.px, it.y - st.py);
-        if (d < nd && Math.abs(it.z - st.pz) < 1.2) { nd = d; near = it; }
-      }
-      st.near = near;
-      return;
-    }
     for (const it of st.items) {
       if (it.ground) continue;
       it.vz -= GRAV * dt;

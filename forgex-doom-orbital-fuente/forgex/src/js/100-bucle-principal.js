@@ -60,113 +60,11 @@
   // ---- un paso de simulación ----
   function simStep(dt) {
     savePrev();
-    if (BACKEND !== 'js' && wasm && wasm.sim_step) {
-      // Sincronizar st hacia Rust SIM y entidades antes del paso (preservando checkpoint)
-      const cpX = st.cp ? st.cp[0] : st.px, cpY = st.cp ? st.cp[1] : st.py, cpZ = st.cp ? st.cp[2] : st.pz;
-      wasm.sim_set_player(st.px, st.py, st.pz, st.pa, st.look, st.hp, st.reserve);
-      if (wasm.sim_state) {
-        const F = new Float32Array(wasm.memory.buffer, wasm.sim_state(), 30);
-        if (st.cp) { F[19] = cpX; F[20] = cpY; F[21] = cpZ; }
-        if (st.healLock !== undefined) F[13] = st.healLock;
-      }
-      wasm.sim_reset_entities();
-      for (const e of st.enemies) {
-        const k = e.type === 'imp' ? 0 : e.type === 'skull' ? 1 : 2;
-        const id = wasm.sim_spawn(k, e.x, e.y, e.z);
-        if (id) wasm.sim_set_entity(id, k, e.x, e.y, e.z, e.hp);
-      }
-      wasm.sim_reset_projectiles();
-      for (const b of st.proj) {
-        const k = b.kind === 'fire' ? 0 : 1;
-        wasm.sim_spawn_projectile(k, b.x, b.y, b.z, b.vx, b.vy, b.vz, b.dmg, b.life);
-      }
-      wasm.sim_reset_items();
-      for (const it of st.items) {
-        if (!it.ground) {
-          wasm.sim_add_item(0, it.x, it.y, it.z, it.vx, it.vy, it.vz);
-        }
-      }
-
-      const fwd = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
-      const str = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
-      const moving = fwd || str;
-      if (moving && st.ground) st.bob += dt * 10;
-      if (jumpReq && st.jumps === 1) burst(st.px, st.py, st.pz, 10, [rgb(95, 242, 230), rgb(200, 255, 255)], 1.5);
-
-      wasm.sim_input(mdx, mdy, packKeys(keys), jumpReq ? 1 : 0, fireHeld ? 1 : 0);
-      mdx = mdy = 0;
-      jumpReq = false;
-
-      const ta = performance.now();
-      wasm.sim_step(dt);
-      simAi += performance.now() - ta;
-
-      // Sincronizar Rust SIM y entidades hacia st después del paso
-      const ptr = wasm.sim_state();
-      const S = new Float32Array(wasm.memory.buffer, ptr, 30);
-      const U = new Uint32Array(wasm.memory.buffer, ptr, 30);
-
-      const oldHp = st.hp;
-      st.px = S[0]; st.py = S[1]; st.pz = S[2];
-      st.vz = S[3]; st.pa = S[4]; st.look = S[5];
-      st.ground = U[6] !== 0; st.jumps = U[7]; st.stuck = S[8];
-      st.kx = S[9]; st.ky = S[10];
-      st.hp = S[11]; st.reserve = S[12]; st.healLock = S[13];
-      st.regenN = U[14]; st.regenT = S[15]; st.regenIdle = S[16];
-      st.regenPend = U[17]; st.regenDrip = S[18];
-      st.cp[0] = S[19]; st.cp[1] = S[20]; st.cp[2] = S[21];
-      st.top = S[22]; st.dead = U[23] !== 0;
-      st.shieldT = S[24]; st.shieldCd = S[25];
-
-      if (st.dead && oldHp > 0) die();
-      if (oldHp - st.hp >= FALL_DMG - 1 && st.healLock >= FALL_LOCK - 1) {
-        SFX.fall();
-        st.dmg = .6;
-        msg(`Caíste al vacío: −${FALL_DMG} de vida. Curación bloqueada ${FALL_LOCK} s.`, '#ff8a7a');
-      }
-
-      // Sincronizar entidades
-      const B = wasm.memory.buffer;
-      const P_SCRATCH = 0x20000;
-      const data = new Float32Array(B, P_SCRATCH, 9);
-      let gone = false;
-      for (let i = 0; i < st.enemies.length; i++) {
-        const e = st.enemies[i];
-        wasm.sim_get_entity(i + 1, P_SCRATCH);
-        if (data[0] === 0) { gone = true; continue; }
-        e.x = data[2]; e.y = data[3]; e.z = data[4];
-        e.hp = data[5]; e.hurt = data[6];
-        if (data[7] > 0) { e.dead = true; e.deadT = data[7]; }
-      }
-      if (gone) st.enemies = st.enemies.filter(e => !(e.dead && e.type !== 'imp' && e.deadT > .55));
-
-      // Sincronizar ítems en caída
-      let itemIdx = 1;
-      for (const it of st.items) {
-        if (!it.ground) {
-          wasm.sim_get_item(itemIdx++, P_SCRATCH);
-          it.x = data[2]; it.y = data[3]; it.z = data[4];
-          it.vx = data[5]; it.vy = data[6]; it.vz = data[7];
-          if (data[8] > 0.5) it.ground = true;
-        }
-      }
-      let near = null, nd = 1.25;
-      for (const it of st.items) {
-        if ((it.kind === 'crate' && it.open) || it.kind === 'beacon') continue;
-        const d = Math.hypot(it.x - st.px, it.y - st.py);
-        if (d < nd && Math.abs(it.z - st.pz) < 1.2) { nd = d; near = it; }
-      }
-      st.near = near;
-
-      st.cd -= dt; st.shieldT = Math.max(0, st.shieldT - dt); st.shieldCd = Math.max(0, st.shieldCd - dt);
-      if (fireHeld && st.cd <= 0) shoot();
-    } else {
-      physics(dt);
-      st.cd -= dt; st.shieldT = Math.max(0, st.shieldT - dt); st.shieldCd = Math.max(0, st.shieldCd - dt);
-      if (fireHeld && st.cd <= 0) shoot();
-      const ta = performance.now(); updateEnemies(dt); simAi += performance.now() - ta;
-      updateProjectiles(dt); updateItems(dt);
-    }
+    physics(dt);
+    st.cd -= dt; st.shieldT = Math.max(0, st.shieldT - dt); st.shieldCd = Math.max(0, st.shieldCd - dt);
+    if (fireHeld && st.cd <= 0) shoot();
+    const ta = performance.now(); updateEnemies(dt); simAi += performance.now() - ta;
+    updateProjectiles(dt); updateItems(dt);
     st.ambT -= dt; if (st.ambT <= 0) { SFX.distant(); st.ambT = rnd(9, 22) * (1 - .5 * Math.min(1, axisT(st.px, st.py))); }
     { const bi = bandOf(st.px, st.py); if (bi > st.band) msg(`Te alejas del eje: ${BANDS[bi][2].toLowerCase()}.`, BAND_COL[bi]); st.band = bi; }
     if (st.hp < st.maxHp * .3) { st.hbT -= dt; if (st.hbT <= 0) { SFX.heart(); st.hbT = .95; } }

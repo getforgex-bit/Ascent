@@ -2,20 +2,7 @@
   const REGEN_RESET = 15;
   function regenStep(n) { let a = .2, b = .3; if (n === 0) return .1; if (n === 1) return .2; for (let k = 2; k < n; k++) [a, b] = [b, +(a + b).toFixed(4)]; return b; }
 
-  function packKeys(k) {
-    let m = 0;
-    if (k.KeyW) m |= 1;
-    if (k.KeyA) m |= 2;
-    if (k.KeyS) m |= 4;
-    if (k.KeyD) m |= 8;
-    if (k.ArrowLeft) m |= 16;
-    if (k.ArrowRight) m |= 32;
-    if (k.ArrowUp) m |= 64;
-    if (k.ArrowDown) m |= 128;
-    return m;
-  }
-
-  function jsPhysics(dt) {
+  function physics(dt) {
     // (la cámara se gira en applyLook, una vez por fotograma)
     const dx = Math.cos(st.pa), dy = Math.sin(st.pa);
     const fwd = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
@@ -88,43 +75,3 @@
     }
   }
 
-  function physics(dt) {
-    if (BACKEND === 'js' || !wasm || !wasm.sim_step) {
-      jsPhysics(dt);
-      return;
-    }
-    const fwd = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
-    const str = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
-    const moving = fwd || str;
-    if (moving && st.ground) st.bob += dt * 10;
-    if (jumpReq && st.jumps === 1) burst(st.px, st.py, st.pz, 10, [rgb(95, 242, 230), rgb(200, 255, 255)], 1.5);
-
-    wasm.sim_input(mdx, mdy, packKeys(keys), jumpReq ? 1 : 0, fireHeld ? 1 : 0);
-    wasm.sim_step(dt);
-
-    const ptr = wasm.sim_state();
-    const S = new Float32Array(wasm.memory.buffer, ptr, 30);
-    const U = new Uint32Array(wasm.memory.buffer, ptr, 30);
-
-    const oldPz = st.pz, oldHp = st.hp;
-    st.px = S[0]; st.py = S[1]; st.pz = S[2];
-    st.vz = S[3]; st.pa = S[4]; st.look = S[5];
-    st.ground = U[6] !== 0; st.jumps = U[7]; st.stuck = S[8];
-    st.kx = S[9]; st.ky = S[10];
-    st.hp = S[11]; st.reserve = S[12]; st.healLock = S[13];
-    st.regenN = U[14]; st.regenT = S[15]; st.regenIdle = S[16];
-    st.regenPend = U[17]; st.regenDrip = S[18];
-    st.cp = [S[19], S[20], S[21]];
-    st.top = S[22]; st.dead = U[23] !== 0;
-    st.shieldT = S[24]; st.shieldCd = S[25];
-
-    if (st.dead && oldHp > 0) die();
-    if (oldHp - st.hp >= FALL_DMG - 1 && st.healLock >= FALL_LOCK - 1) {
-      SFX.fall();
-      st.dmg = .6;
-      msg(`Caíste al vacío: −${FALL_DMG} de vida. Curación bloqueada ${FALL_LOCK} s.`, '#ff8a7a');
-    }
-
-    mdx = mdy = 0;
-    jumpReq = false;
-  }

@@ -213,7 +213,7 @@ En el paquete, `dist/forgex-doom-orbital.html` es la compilación actual (se abr
 - **`world.rs`**: Se añadieron consultas espaciales optimizadas (`cell_at`, `blocked`, `floor_at`, `solid_at`, `clear_path`).
 - **`sim_state.rs`**: Estructura `SimState` `#[repr(C)]` con 30 campos alineados (posición, velocidad, ángulos, vida, regeneración Fibonacci, checkpoints, top).
 - **`physics.rs`**: Port completo de la física del jugador (`075-fisica-del-jugador.js`) con cálculo Fibonacci bit-exacto (`regen_step`).
-- **`075-fisica-del-jugador.js`**: Delegación a `wasm.sim_step` cuando `BACKEND !== 'js'` con fallback JS idéntico.
+- **`075-fisica-del-jugador.js`**: Delegación a `wasm.sim_step` cuando `BACKEND !== 'js'` con fallback JS idéntico. *(Desconectado el 26-sep-2026: ver «Corrección» más abajo.)*
 - **`pruebas/c1_physics.js`**: 38/38 pruebas unitarias y de integración pasando al 100% en SIMD y Escalar.
 
 ### Plan C2: SIMD Explícito de 128 bits, Hitscan y Simulación de Entidades (Completado)
@@ -234,6 +234,27 @@ En el paquete, `dist/forgex-doom-orbital.html` es la compilación actual (se abr
   - Test C3.5: 10.000 pasos deterministas continuos sin diverger, generando 500/500 hashes únicos en las muestras.
   - Test C3.6: 18.000 pasos (5 minutos de simulación continua a 60 FPS) verificando ausencia total de bloqueos, NaNs e invariantes de estado (no `hp <= 0` sin `dead = true`).
 - **Suite de Regresión**: Cero regresiones en `c1_physics.js` (38/38), `c2_simd.js` (7/7), `parity.js` (144/144), `t_cfg.js` (aprobado).
+
+### Corrección del 26 de septiembre de 2026: la simulación del juego vuelve a JavaScript
+La integración de C1–C3 en el juego estaba rota con el motor Rust (el que se usa por defecto), aunque las pruebas
+de Rust aisladas pasaban. En cada paso, el JS recreaba el estado en Rust desde cero:
+- `sim_set_player` ponía `vz = 0` y borraba el empuje: **el salto subía 0,09 m** (el HUD mostraba «1 m») y la
+  **caída al vacío no terminaba nunca** (bajaba a 0,33 m/s constantes sin llegar al umbral de −14 m).
+- `sim_reset_entities` + `sim_spawn` reiniciaban la IA en cada paso: **los imps y cacodemonios nunca disparaban y
+  las calaveras nunca embestían**; los proyectiles no se leían de vuelta desde Rust.
+- `SIM.dead` no se reiniciaba: **tras morir y pulsar R el jugador seguía muerto**.
+- `physics.rs` marca el récord con `F_SHIP` en lugar de la marca de ruta (16): **el récord no subía en las
+  plataformas de la ruta** y la torre dejaba de generarse por encima.
+- Las flechas y el ratón giraban la cámara dos veces (en `applyLook` y otra vez en Rust), faltaban sonidos y efectos
+  (plataformas de impulso, punto seguro, aterrizaje) y los datos se leían en una dirección fija (`0x20000`) de la
+  memoria de Rust.
+
+Solución aplicada: la simulación (física del jugador, enemigos, proyectiles, objetos y disparo) usa siempre la lógica
+JS, que es la de la v17 verificada. Rust sigue haciendo el render. El código de simulación en Rust (`sim.rs`,
+`physics.rs`, `hitscan.rs`) se conserva y sus pruebas aisladas siguen igual, pero no está conectado al juego:
+conectarlo bien exige que Rust conserve el estado entre pasos en lugar de recrearlo, además de corregir el fallo de
+`F_SHIP`. `pruebas/regression_gameplay.js` añade los escenarios 7–10 (salto y doble salto, caída libre real, reinicio
+tras morir y ataque de un imp) con el motor Rust.
 
 ---
 

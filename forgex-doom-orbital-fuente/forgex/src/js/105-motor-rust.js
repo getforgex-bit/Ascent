@@ -43,7 +43,6 @@
     uploadAssets(X); syncWorld(X);
     if (ATL.used) atlasTo(X, 0, ATL.used);
     syncConfigToRust(X);
-    if (X.sim_set_player && typeof st !== 'undefined') X.sim_set_player(st.px, st.py, st.pz, st.pa, st.look, st.hp, st.reserve);
     return X;
   }
   // Carga la variante Rust que corresponde a la configuración (SIMD si se puede y está activado)
@@ -134,12 +133,4 @@
     tp: (x, y, z, a) => {
       st.px = x; st.py = y; st.pz = z; st.pa = a; st.vz = 0; st.ox = undefined; started = true;
       st.cp = [x, y, z]; st.healLock = 0;
-      if (wasm && wasm.sim_set_player) {
-        wasm.sim_set_player(x, y, z, a, st.look, st.hp, st.reserve);
-        if (wasm.sim_state) {
-          const F = new Float32Array(wasm.memory.buffer, wasm.sim_state(), 30);
-          const U = new Uint32Array(wasm.memory.buffer, wasm.sim_state(), 30);
-          F[13] = 0; F[19] = x; F[20] = y; F[21] = z; U[6] = 1;
-        }
-      }
     } };
