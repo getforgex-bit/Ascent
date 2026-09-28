@@ -114,6 +114,7 @@
       `RT: ${RT_NAMES[EFF.rt]}${EFF.rt < CFG.rt.mode ? ' (recortado por AUTO)' : ''} · alcance ${CFG.rt.maxDist} m`,
       BACKEND === 'webgpu' ? `RT en GPU: ${CFG.rt.rays} rayos/píxel · temporal ${on(CFG.rt.temporal)} · denoise ${['no', 'bajo', 'medio', 'alto'][CFG.rt.denoise]} · indirecta ${on(CFG.rt.indirect)}` : 'Acumulación temporal, denoise y luz indirecta: solo con WebGPU',
       `Luces dinámicas: hasta ${EFF.lights} · partículas ${['pocas', 'normales', 'muchas'][EFF.parts]} · bloom ${on(CFG.graphics.bloom)} · grano ${on(CFG.graphics.grain)}`,
+      directorSummary(),
     ];
     ctx.save(); ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = PM(600, 11);
     const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16, y0 = CFG.debug.overlay ? 100 + (PERF.lines ? PERF.lines.length : 8) * 15 + 12 : 100;

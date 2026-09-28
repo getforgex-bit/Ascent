@@ -53,7 +53,7 @@
     else st.stuck = 0;
     // caída al vacío: daño, vuelta al punto seguro y curación bloqueada
     if (st.pz < st.cp[2] - 14) {
-      respawnSafe(); st.healLock = FALL_LOCK; SFX.fall();
+      respawnSafe(); st.healLock = FALL_LOCK; SFX.fall(); directorNote('fall');
       msg(`Caíste al vacío: −${FALL_DMG} de vida. Curación bloqueada ${FALL_LOCK} s.`, '#ff8a7a');
       hurtPlayer(FALL_DMG); st.dmg = .6;
     }

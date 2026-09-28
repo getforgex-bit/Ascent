@@ -129,7 +129,7 @@
     get lights() { return lights; }, get st() { return st; }, get ships() { return ships; }, get gen() { return gen; }, get parts() { return PARTS.n; },
     get CAM() { return CAM; }, get FR() { return FR; }, get sprN() { return sprN; }, get SPRQ() { return SPRQ; },
     get px() { return px; }, get py() { return py; }, get camZ() { return camZ; }, prepareFrame, renderWorld, rustRender, gpuRender,
-    nextStep, makeFarlands, plat, safeSpot, CHUNKS, chunkStats, chunkWindow, chunkLayer, streamChunks, forLoadedBlocks, pruneWorld, setChunkStreaming, CHUNK_XY, CHUNK_Z, get WK() { return WK; }, get WORKERS() { return WORKERS; }, R_EXPLORE, chanceAt, contentAt, bandOf, regionAt, axisT, C, R_MAX, MW, get cells() { return cells; },
+    nextStep, makeFarlands, plat, safeSpot, CHUNKS, chunkStats, chunkWindow, chunkLayer, streamChunks, forLoadedBlocks, pruneWorld, setChunkStreaming, CHUNK_XY, CHUNK_Z, get WK() { return WK; }, get director() { return DIR; }, directorTick, directorBeat, directorNote, directorSummary, spawnChaser, CHASER, RHYTHM_SHARE, get WORKERS() { return WORKERS; }, R_EXPLORE, chanceAt, contentAt, bandOf, regionAt, axisT, C, R_MAX, MW, get cells() { return cells; },
     tp: (x, y, z, a) => {
       st.px = x; st.py = y; st.pz = z; st.pa = a; st.vz = 0; st.ox = undefined; started = true;
       st.cp = [x, y, z]; st.healLock = 0;

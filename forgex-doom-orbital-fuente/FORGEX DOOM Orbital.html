@@ -413,6 +413,10 @@
     skullTele: v => tone(700, 1500, .5, .1 * v, 'sawtooth'),
     skullDash: v => noise(.5, .2 * v, 400, 'bandpass', 1500),
     cacoTele: v => tone(110, 260, .9, .16 * v, 'sawtooth'),
+    chaser: small => small ? (tone(900, 1700, .35, .09, 'square'), tone(1300, 2300, .3, .05, 'square', .12))
+      : (tone(95, 60, 1.1, .16, 'sawtooth'), noise(.9, .08, 300, 'bandpass', 120)),
+    chaserBite: v => { noise(.18, .2 * v, 1200, 'bandpass', 400); tone(160, 70, .2, .12 * v, 'square'); },
+    chaserFade: v => tone(520, 90, .7, .06 * v, 'triangle'),
     shield: () => { tone(1250, 1250, .5, .1); tone(1870, 1870, .5, .06); },
     block: () => { tone(2400, 900, .2, .15, 'triangle'); noise(.12, .15, 5000, 'highpass'); },
     hurt: () => { noise(.2, .25, 500); tone(95, 50, .25, .25); },
@@ -896,6 +900,50 @@
     const death = [spriteHD((g, e) => drawCaco(g, e, { mouth: 1, blink: true, split: true })),
       spriteHD((g, e) => drawCaco(g, e, { mouth: 1.2, blink: true, split: true, pal: [[0, '#b84a3a'], [.4, '#8a1a12'], [1, '#1e0202']] }))];
     return { n, blink, tele, hurt, death };
+  })();
+
+  // ===== ACECHADOR: sombra flotante con un ojo anular y jirones de humo (perseguidor) =====
+  // La cría usa la misma forma con otra paleta (más viva, para que se lea como «rápida» de un vistazo).
+  const CHASER_PAL = {
+    normal: { core: ['#5a3a8a', '#2a1646', '#0a0412'], wisp: 'rgba(70,40,120,', eye: '#c8ff3a', iris: '#5aa010', maw: '#ff5a2a' },
+    small: { core: ['#ff7ad8', '#8a1a8a', '#1a0420'], wisp: 'rgba(200,60,200,', eye: '#7afcff', iris: '#1a9ab8', maw: '#ffe25a' },
+  };
+  function drawChaser(g, e, P) {
+    const C = CHASER_PAL[P.v], f = P.frame || 0, cx = 64, cy = 58, lunge = P.lunge ? 1 : 0;
+    // jirones de humo que cuelgan y ondulan
+    for (let k = 0; k < 7; k++) {
+      const x = cx - 30 + k * 10, len = 34 + 14 * Math.abs(Math.sin(k * 1.9 + f * 1.4)), sway = Math.sin(f * 1.3 + k) * 6;
+      g.fillStyle = lin(g, x, cy + 10, x + sway, cy + 10 + len, [[0, C.wisp + '.95)'], [1, C.wisp + '0)']]);
+      g.beginPath(); g.moveTo(x - 6, cy + 8); g.quadraticCurveTo(x + sway * .5, cy + 10 + len * .6, x + sway, cy + 10 + len); g.quadraticCurveTo(x + sway * .5 + 3, cy + 10 + len * .5, x + 6, cy + 8); g.fill();
+    }
+    // cuerpo encorvado hacia delante
+    g.fillStyle = rad2(g, cx - 10, cy - 14, 3, 40, [[0, C.core[0]], [.55, C.core[1]], [1, C.core[2]]]);
+    g.beginPath(); g.ellipse(cx, cy, 34 + lunge * 3, 28 - lunge * 2, 0, 0, 7); g.fill();
+    // púas del lomo
+    g.fillStyle = C.core[2];
+    for (let k = 0; k < 5; k++) { const x = cx - 20 + k * 10; g.beginPath(); g.moveTo(x - 5, cy - 22); g.lineTo(x + Math.sin(f + k) * 2, cy - 38 - (k % 2) * 6); g.lineTo(x + 5, cy - 22); g.fill(); }
+    // ojo anular que brilla
+    const ey = cy - 4, er = 12 + lunge * 2;
+    both(g, e, c => { c.fillStyle = rad2(c, cx, ey, 2, er + 6, [[0, '#ffffff'], [.35, C.eye], [.8, C.iris], [1, 'rgba(0,0,0,0)']]); c.beginPath(); c.arc(cx, ey, er + 6, 0, 7); c.fill(); });
+    g.fillStyle = '#050208'; g.beginPath(); g.ellipse(cx, ey, 3 + lunge * 2, 8, 0, 0, 7); g.fill();
+    // boca: una raja con dientes que se abre al lanzarse
+    const my = cy + 14, mh = 3 + lunge * 9;
+    both(g, e, c => { c.fillStyle = lunge ? C.maw : 'rgba(0,0,0,0)'; c.beginPath(); c.ellipse(cx, my + mh * .4, 16, mh * .6, 0, 0, 7); c.fill(); });
+    g.fillStyle = '#12060e'; g.beginPath(); g.moveTo(cx - 18, my); g.quadraticCurveTo(cx, my + mh + 4, cx + 18, my); g.quadraticCurveTo(cx, my + 3, cx - 18, my); g.fill();
+    g.fillStyle = '#efe6f0'; for (let k = 0; k < 7; k++) { const x = cx - 13 + k * 4.3; g.beginPath(); g.moveTo(x - 1.6, my + 1); g.lineTo(x, my + 5 + lunge * 2); g.lineTo(x + 1.6, my + 1); g.fill(); }
+    if (P.torn) { g.strokeStyle = '#000'; g.lineWidth = 3; g.beginPath(); g.moveTo(cx - 24, cy - 14); g.lineTo(cx - 4, cy + 4); g.lineTo(cx - 12, cy + 18); g.moveTo(cx + 20, cy - 16); g.lineTo(cx + 8, cy + 8); g.stroke(); }
+  }
+  const chaserFrames = (() => {
+    const out = {};
+    for (const v of ['normal', 'small']) {
+      const n = [0, 1, 2, 3].map(f => spriteHD((g, e) => drawChaser(g, e, { v, frame: f })));
+      const lunge = spriteHD((g, e) => drawChaser(g, e, { v, frame: 1, lunge: true }));
+      const hurt = tintHD(spriteHD((g, e) => drawChaser(g, e, { v, frame: 2 })), [255, 255, 255], .55);
+      const death = [spriteHD((g, e) => drawChaser(g, e, { v, frame: 3, torn: true, lunge: true })),
+        spriteHD((g, e) => { g.globalAlpha = e.globalAlpha = .55; drawChaser(g, e, { v, frame: 0, torn: true }); })];
+      out[v] = { n, lunge, hurt, death };
+    }
+    return out;
   })();
 
   // ===== COFRE: caja blindada en 3/4 con tapa, cierre luminoso y bandas de peligro =====
@@ -1476,9 +1524,13 @@
   }
 
   // ================= RAMAS RADIALES DE EXPLORACIÓN =================
-  function decoratePlat(R, tier, threat) {
+  // Devuelve si en la plataforma pasa algo (objeto, contenedor o enemigo). Con `force` (latido de la rama) siempre pasa
+  // algo; en una región estéril puede ser solo un contenedor, a veces vacío: una razón para mirar, no un premio.
+  function decoratePlat(R, tier, threat, force = false) {
     const cx = R.x + R.w / 2, cy = R.y + R.h / 2, t = axisT(cx, cy);
-    placeContent(cx, cy, R.zt, contentAt(cx, cy, R.zt), .35);
+    const it = contentAt(cx, cy, R.zt);
+    let beat = !!it;
+    placeContent(cx, cy, R.zt, it, .35);
     if (R.w >= 2) {
       const ic = [Math.floor(cx), Math.floor(cy)];
       const corners = [[R.x, R.y], [R.x + R.w - 1, R.y], [R.x, R.y + R.h - 1], [R.x + R.w - 1, R.y + R.h - 1]].filter(([i, j]) => i !== ic[0] || j !== ic[1]);
@@ -1486,9 +1538,18 @@
       else if (Math.random() < .12) { const [i, j] = pick(corners); for (const b of cells[j * MW + i] || NONE) if (Math.abs(b.zt - R.zt) < .01) { b.tex = 7; b.acid = true; } worldOp(2, [i, j, R.zt]); }
     }
     const pE = { baja: .05, media: .1, alta: .2 }[threat] * (.7 + t);
-    if (R.w >= 2 && Math.random() < pE) spawn('imp', cx, cy, R.zt);
-    else if (Math.random() < pE * .3 && (tier >= 1 || t > .4)) { if (!solidAt(cx, cy, R.zt + 2.2)) spawn('caco', cx, cy, R.zt + 2.2); }
-    else if (Math.random() < pE * .2) { if (!solidAt(cx, cy, R.zt + 1.5)) spawn('skull', cx, cy, R.zt + 1.5); }
+    if (R.w >= 2 && Math.random() < pE) { spawn('imp', cx, cy, R.zt); beat = true; }
+    else if (Math.random() < pE * .3 && (tier >= 1 || t > .4)) { if (!solidAt(cx, cy, R.zt + 2.2)) { spawn('caco', cx, cy, R.zt + 2.2); beat = true; } }
+    else if (Math.random() < pE * .2) { if (!solidAt(cx, cy, R.zt + 1.5)) { spawn('skull', cx, cy, R.zt + 1.5); beat = true; } }
+    if (force && !beat) {
+      beat = true;
+      if (regionAt(cx, cy, R.zt) === 'esteril') addItem('crate', cx, cy, R.zt, { content: Math.random() < .5 ? { kind: 'ammo', ammo: 'celdas', count: randi(1, 2) } : null, open: false });
+      else if (Math.random() < .6) placeContent(cx, cy, R.zt, rollType(regionAt(cx, cy, R.zt)), .5);
+      else if (R.w >= 2) spawn('imp', cx, cy, R.zt);
+      else if (!solidAt(cx, cy, R.zt + 1.5)) spawn('skull', cx, cy, R.zt + 1.5);
+      else addItem('crate', cx, cy, R.zt, { content: null, open: false });
+    }
+    return beat;
   }
   function altar(P, hd, tier, threat) {
     const s = 4, dd = Math.max(P.w, P.h) / 2 + s / 2 + rnd(.6, 1.2), pcx = P.x + P.w / 2, pcy = P.y + P.h / 2;
@@ -1517,6 +1578,10 @@
     const diff = pick(['facil', 'normal', 'normal', 'dificil']), threat = pick(['baja', 'media', 'media', 'alta']);
     const tex = Math.random() < .5 ? 1 : 2;
     let P = node, heading = ang, trav = 0, hitLimit = false, ended = false, nextPOI = rnd(18, 40), zBase = node.zt; const plats = [];
+    // Latidos: una rama larga no puede ser un vacío largo. Cada 3–5 plataformas pasa algo (5–8 en las profundas o
+    // lejanas, que pueden estar más vacías pero nunca del todo).
+    const beatGap = () => depth || axisT(P.x, P.y) > .6 ? randi(5, 8) : randi(3, 5);
+    let sinceBeat = 0, gap = beatGap();
     for (let i = 0; i < 600 && trav < target; i++) {
       if (depth === 0 && plats.length && trav >= nextPOI) { // punto de interés en mitad de la rama
         nextPOI = trav + rnd(35, 80);
@@ -1547,7 +1612,7 @@
       const { R, th, hd } = placed; heading = hd; R.hd = hd;
       plat(R.x, R.y, R.w, R.h, R.zt, th, tex);
       trav += Math.hypot(R.x - P.x, R.y - P.y); P = R; plats.push(R);
-      decoratePlat(R, tier, threat);
+      if (decoratePlat(R, tier, threat, ++sinceBeat >= gap)) { gen.maxQuiet = Math.max(gen.maxQuiet, sinceBeat - 1); sinceBeat = 0; gap = beatGap(); }
     }
     if (!plats.length) return 0;
     gen.branches++; gen.branchPlats += plats.length; if (!depth) gen.lens.push(Math.round(trav)); if (!depth && trav < target && !ended) gen.stuck++;
@@ -1625,31 +1690,33 @@
     const band = Math.floor(R.zt / 25) % 2;
     plat(R.x, R.y, R.w, R.h, R.zt, th, pad ? 3 : (Math.random() < .75 ? [1, 2][band] : [2, 1][band]), pad ? PAD : 0, true);
     const afterPad = gen.afterPad;
-    Object.assign(gen, { last: R, h: R.zt, ang, r, afterPad: pad, fails: 0 }); gen.steps++;
+    Object.assign(gen, { last: R, h: R.zt, ang, r, afterPad: pad, fails: 0 }); gen.steps++; R.pad = pad; gen.route.push(R);
     if (pad) return;
     const cx = R.x + R.w / 2, cy = R.y + R.h / 2;
-    if (gen.steps > 4 && Math.random() < Math.min(.38, .1 + R.zt * .005)) spawn('imp', cx, cy, R.zt);
+    // la ruta central ya no depende solo del azar: estas tiradas quedan al 40 % y el Director de Ritmo pone el resto
+    if (gen.steps > 4 && Math.random() < Math.min(.38, .1 + R.zt * .005) * ROUTE_RANDOM) spawn('imp', cx, cy, R.zt);
     else if (Math.random() < .05) addItem('ammo', cx, cy, R.zt, { ammo: Math.random() < .7 ? 'celdas' : 'cartuchos', count: randi(1, 3) });
     // nodo de bifurcación: no siempre aparece
     if (R.zt >= gen.nodeNext && R.w >= 2 && !afterPad) {
       gen.nodeNext = R.zt + rnd(6, 10);
       if (Math.random() < .7 && makeNode(R, gen.tier) > 0) gen.tier++;
     }
-    if (gen.tier >= 2 && Math.random() < .05) { const x = cx + rnd(-3, 3), y = cy + rnd(-3, 3); if (!solidAt(x, y, R.zt + 2.5)) spawn('caco', x, y, R.zt + 2.5); }
+    if (gen.tier >= 2 && Math.random() < .05 * ROUTE_RANDOM) { const x = cx + rnd(-3, 3), y = cy + rnd(-3, 3); if (!solidAt(x, y, R.zt + 2.5)) spawn('caco', x, y, R.zt + 2.5); }
   }
   function initWorld() {
     cells = new Array(MW * MH); cellIdx = new Set(); ships = []; lights = []; worldOp(4, []);
     CHUNKS.map.clear(); CHUNKS.key = ''; CHUNKS.win = CHUNKS.stream ? chunkWindow(st.px, st.py, st.pz, 0) : null;
-    gen = { h: 0, ang: rnd(0, TAU), r: 5, dir: Math.random() < .5 ? 1 : -1, last: null, steps: 0, fails: 0, afterPad: false, tier: 0, nodeNext: rnd(4, 6),
+    gen = { route: [], maxQuiet: 0, h: 0, ang: rnd(0, TAU), r: 5, dir: Math.random() < .5 ? 1 : -1, last: null, steps: 0, fails: 0, afterPad: false, tier: 0, nodeNext: rnd(4, 6),
       regions: {}, rolls: 0, hits: 0, nodes: 0, armsTried: 0, branches: 0, branchPlats: 0, altars: 0, secrets: 0, maxReach: 0, lens: [], limits: 0, armsMade: 0, shipsMade: 0, dungeons: 0, houses: 0, linked: 0, stuck: 0, megas: 0, farlands: 0, farParts: 0 };
     plat(C - 2, C - 2, 5, 5, 0, 1.5, 1, 0, true);
-    gen.last = { x: C - 2, y: C - 2, w: 5, h: 5, zt: 0 };
+    gen.last = { x: C - 2, y: C - 2, w: 5, h: 5, zt: 0 }; gen.route.push(gen.last);
     let n = 0; while (gen.h < 34 && n++ < 400) nextStep();
   }
   function prune() {
     const minZ = Math.min(st.cp[2], st.pz) - 22;
     pruneWorld(minZ);
     st.enemies = st.enemies.filter(e => e.z > minZ); st.items = st.items.filter(i => i.z > minZ); ships = ships.filter(s => s.zf > minZ); lights = lights.filter(l => l.z > minZ);
+    gen.route = gen.route.filter(R => R.zt > minZ);
   }
   // ================= COLISIONES =================
   function blocked(x, y, z) { const c = cellAt(x, y); if (!c) return false; for (const b of c) if (b.zt > z + .35 && b.zb < z + .95) return true; return false; }
@@ -1732,7 +1799,7 @@
 
   // ================= ENTIDADES =================
   function spawn(type, x, y, z) {
-    st.enemies.push({ type, x, y, z, hx: x, hy: y, hz: z, hp: type === 'imp' ? 3 : type === 'skull' ? 2 : 8, cd: rnd(1.5, 3.5), wind: 0, hurt: 0,
+    st.enemies.push({ type, x, y, z, hx: x, hy: y, hz: z, hp: type === 'imp' ? 3 : type === 'skull' ? 2 : type === 'chaser' ? 4 : 8, cd: rnd(1.5, 3.5), wind: 0, hurt: 0,
       dead: false, ph: rnd(0, 6), state: 'idle', t: 0, dx: 0, dy: 0, dz: 0, hit: false, moving: false, lost: 0 });
   }
   function addItem(kind, x, y, z, extra = {}) { st.items.push(Object.assign({ kind, x, y, z, vx: 0, vy: 0, vz: 0, ground: false }, extra, { kind })); }
@@ -1797,24 +1864,25 @@
         it.open = true;
         if (!it.content) { SFX.emptyCrate(); msg('El contenedor está vacío.', '#a99cff'); }
         else { SFX.open(); addItem(it.content.kind, it.x, it.y, it.z + .6, Object.assign({}, it.content, { vz: 3 })); msg('Algo había dentro…'); }
+        directorNote('discovery');
         return;
       case 'ammo': {
         const n = pickupAmmo(it.ammo, it.count);
         if (!n) return denied('Sin espacio: suelta algo con Q o consigue una caja.');
-        it.count -= n; SFX.pick();
+        it.count -= n; SFX.pick(); directorNote('reward');
         msg(`+${n} ${AMMO[it.ammo].name}` + (it.count ? ` · ${it.count} se quedan en el suelo` : ''), AMMO[it.ammo].col);
         if (!it.count) rm(); return;
       }
       case 'box': {
         const hasLoose = st.inv.some(i => i.t === 'loose' && i.ammo === it.ammo);
         if (freeSlots() < 1 && !(hasLoose && it.count < st.boxCap)) return denied('Necesitas 1 espacio libre para la caja.');
-        st.inv.push({ t: 'box', ammo: it.ammo, count: it.count }); consolidate(it.ammo); SFX.pick(); rm();
+        st.inv.push({ t: 'box', ammo: it.ammo, count: it.count }); consolidate(it.ammo); SFX.pick(); rm(); directorNote('reward');
         return msg(`Caja de ${AMMO[it.ammo].name} (${it.count}/${st.boxCap}). Guarda hasta ${st.boxCap} de ese tipo.`, AMMO[it.ammo].col);
       }
       case 'weapon': {
         if (freeSlots() < 2) return denied('Un arma ocupa 2 espacios. Suelta algo con Q.');
         const w = { t: 'weapon', w: it.w }; st.inv.push(w); sortInv(); if (!st.weapon) st.weapon = w;
-        SFX.pick(); rm(); return msg(`${WEAP[it.w].name} · usa ${AMMO[WEAP[it.w].ammo].name}`, '#ffdc50');
+        SFX.pick(); rm(); directorNote('reward'); return msg(`${WEAP[it.w].name} · usa ${AMMO[WEAP[it.w].ammo].name}`, '#ffdc50');
       }
       case 'shield':
         if (st.inv.some(i => i.t === 'shield')) return denied('Ya llevas un escudo.');
@@ -1822,9 +1890,9 @@
         st.inv.push({ t: 'shield' }); sortInv(); SFX.pick(); rm(); return msg('Escudo recuperado.', '#5ff2e6');
       case 'heal':
         if (st.reserve >= st.reserveMax - .5) return denied('Tu reserva de curación ya está llena.');
-        st.reserve = Math.min(st.reserveMax, st.reserve + 25); SFX.pick(); rm(); return msg('+25 de reserva de curación.', '#7dff4a');
+        st.reserve = Math.min(st.reserveMax, st.reserve + 25); SFX.pick(); rm(); directorNote('reward'); return msg('+25 de reserva de curación.', '#7dff4a');
       case 'upgrade':
-        UPG[it.up].apply(st); SFX.pick(); rm(); return msg(`Mejora: ${UPG[it.up].name}, ${UPG[it.up].desc}.`, '#ffcc40');
+        UPG[it.up].apply(st); SFX.pick(); rm(); directorNote('reward'); return msg(`Mejora: ${UPG[it.up].name}, ${UPG[it.up].desc}.`, '#ffcc40');
     }
   }
   function dropSelected() {
@@ -1852,6 +1920,247 @@
   }
   const itemIcon = it => it.kind === 'crate' ? (it.open ? (it.content ? chestFrames.looted : chestFrames.empty) : chestFrames.closed) : it.kind === 'ammo' ? ICON[it.ammo] : it.kind === 'box' ? ICON['box_' + it.ammo] : it.kind === 'weapon' ? ICON[it.w] : ICON[it.kind];
 
+  // ================= DIRECTOR DE RITMO =================
+  // Encima de la generación: en vez de decidir la partida solo con tiradas independientes, el Director recuerda qué ha
+  // pasado (combate, recompensa, descubrimiento, caída, persecución, descanso) y decide qué TIPO de momento hace falta.
+  // El contenido concreto sigue siendo aleatorio (qué enemigo, qué objeto, dónde), y una parte de los momentos se deja
+  // al azar puro: el ritmo predomina, pero no lo decide todo.
+  //   micro (6–12 s): nunca pasa mucho tiempo sin algo que obligue a mirar, decidir o reaccionar;
+  //   ciclo (35–60 s): despertar → presión → encuentro → recompensa → exploración → pico → respiro;
+  //   macro (2–4 min): un momento grande (encuentro fuerte + gran recompensa).
+  // Nunca castiga una caída: después viene recuperación (sin presión ni acechadores).
+  const RHYTHM = [['despertar', 4, 8], ['presion', 4, 8], ['encuentro', 5, 12], ['recompensa', 3, 7], ['exploracion', 6, 15], ['pico', 6, 15], ['respiro', 5, 10]];
+  const PHASE_NAME = { despertar: 'despertar', presion: 'presión', encuentro: 'encuentro', recompensa: 'recompensa', exploracion: 'exploración', pico: 'pico', respiro: 'respiro', recuperacion: 'recuperación' };
+  const RHYTHM_SHARE = .75;   // parte de los momentos que decide el ritmo; el resto, el azar
+  const ROUTE_RANDOM = .4;    // las tiradas de enemigos de la ruta central quedan al 40 %: el resto lo pone el Director
+  const CALM = { respiro: 1, recuperacion: 1 };
+  let DIR;
+  function directorReset() {
+    DIR = { t: 0, phase: 0, name: 'despertar', phaseT: 0, phaseLen: rnd(4, 8), pressure: 0, highT: 0,
+      sinceEvent: 0, sinceCombat: 0, sinceReward: 0, sinceDiscovery: 0, sinceFall: 999, sinceChase: 999, sinceHealed: 999,
+      sinceBig: 0, bigAt: rnd(120, 240), stillT: 0, stillRolled: false, branchT: 0, needCd: 0, combatStreak: 0, rewardT: 0, lastHp: 100,
+      time: { travesia: 0, combate: 0, persecucion: 0, recompensa: 0, recuperacion: 0 }, ema: { combate: 0, persecucion: 0 }, combatNow: false,
+      decisions: { ritmo: 0, azar: 0 }, beats: [] };
+  }
+  directorReset();
+
+  // Lo que pasa en la partida alimenta la memoria del Director
+  function directorNote(kind) {
+    if (!DIR) return;
+    const D = DIR;
+    if (kind === 'hurt' || kind === 'hit') { D.sinceCombat = 0; D.sinceEvent = 0; D.pressure = Math.min(10, D.pressure + (kind === 'hurt' ? .8 : .15)); }
+    else if (kind === 'kill') { D.combatStreak++; D.sinceEvent = 0; }
+    else if (kind === 'reward') { D.sinceReward = 0; D.sinceEvent = 0; D.rewardT = 3; D.pressure = Math.max(0, D.pressure - 1.5); }
+    else if (kind === 'discovery') { D.sinceDiscovery = 0; D.sinceEvent = 0; }
+    else if (kind === 'fall') { // recuperación: sin presión, sin acechadores y un recurso pequeño cerca
+      D.sinceFall = 0; D.pressure = 0; D.combatStreak = 0;
+      for (const e of st.enemies) if (e.type === 'chaser' && !e.dead) { e.dead = true; e.deadT = 0; }
+      directorPhase('recuperacion', rnd(5, 8));
+      if (Math.random() < .5) { const s = directorSpot(1.5, 4, -.2, .2, false); if (s) addItem('ammo', s[0], s[1], s[2], { ammo: 'celdas', count: randi(1, 2) }); }
+    }
+  }
+  function directorPhase(name, len) {
+    const D = DIR; D.name = name; D.phaseT = 0; D.phaseLen = len;
+    const k = RHYTHM.findIndex(r => r[0] === name); if (k >= 0) D.phase = k;
+    if (!CALM[name]) directorBeat(name, 'fase');
+  }
+
+  // ---- dónde poner las cosas ----
+  // Plataforma de la ruta central por delante (encima) del jugador: lo que se pone ahí se encuentra al seguir subiendo.
+  function routeAhead() {
+    let best = null;
+    for (const R of gen.route) {
+      if (R.pad || R.zt < st.pz + 1.2 || R.zt > st.pz + 9) continue;
+      const cx = R.x + R.w / 2, cy = R.y + R.h / 2;
+      if (Math.hypot(cx - st.px, cy - st.py) > 16) continue;
+      if (st.enemies.some(e => !e.dead && Math.hypot(e.x - cx, e.y - cy) < 1.5 && Math.abs(e.z - R.zt) < 3)) continue;
+      if (!standable(Math.floor(cx), Math.floor(cy), R.zt)) continue;
+      if (!best || R.zt < best[2]) best = [cx, cy, R.zt];
+    }
+    return best;
+  }
+  // Suelo cercano (ramas, estructuras): una celda en la que se pueda estar de pie a dmin–dmax del jugador y
+  // dz0–dz1 de altura. Si `hidden`, fuera de la vista o lejos: que aparezca sin materializarse en la cara del jugador.
+  function directorSpot(dmin, dmax, dz0, dz1, hidden) {
+    for (let k = 0; k < 40; k++) {
+      const a = rnd(0, TAU), r = rnd(dmin, dmax), i = Math.floor(st.px + Math.cos(a) * r), j = Math.floor(st.py + Math.sin(a) * r);
+      for (const b of cells[j * MW + i] || NONE) {
+        if (b.zt < st.pz + dz0 || b.zt > st.pz + dz1 || !standable(i, j, b.zt)) continue;
+        const x = i + .5, y = j + .5, rel = Math.atan2(y - st.py, x - st.px) - st.pa, ang = Math.abs(rel - TAU * Math.round(rel / TAU));
+        if (hidden && r < 9 && ang < FOV / 2 + .2) continue;
+        return [x, y, b.zt];
+      }
+    }
+    return null;
+  }
+  // Aire libre para un acechador: detrás o a los lados del jugador (fuera de la vista), a 12–16, con camino directo.
+  function chaserSpot() {
+    for (let k = 0; k < 40; k++) {
+      const a = st.pa + Math.PI + rnd(-1.2, 1.2), r = rnd(12, 16), x = st.px + Math.cos(a) * r, y = st.py + Math.sin(a) * r, z = st.pz + rnd(.5, 2.5);
+      if (Math.hypot(x - C, y - C) > R_EXPLORE - 2 || solidAt(x, y, z) || solidAt(x, y, z + .5)) continue;
+      if (k < 30 && !clearPath(x, y, z, st.px, st.py, st.pz + .6)) continue;
+      return [x, y, z];
+    }
+    return null;
+  }
+  const nearEnemies = () => st.enemies.filter(e => !e.dead && Math.hypot(e.x - st.px, e.y - st.py) < 20 && Math.abs(e.z - st.pz) < 8).length;
+  const chaserActive = () => st.enemies.some(e => e.type === 'chaser' && !e.dead);
+
+  // ---- los momentos (beats) ----
+  function placeEnemy(type) {
+    const s = routeAhead() || directorSpot(6, 13, -1.5, 5, true);
+    if (!s) return false;
+    const z = type === 'skull' ? s[2] + 1.5 : type === 'caco' ? s[2] + 2.2 : s[2];
+    if (type !== 'imp' && solidAt(s[0], s[1], z)) return false;
+    spawn(type, s[0], s[1], z); st.enemies[st.enemies.length - 1].dir = true;
+    return true;
+  }
+  function placeChaser(variant) {
+    const D = DIR;
+    if (D.sinceFall < 25 || chaserActive()) return false;
+    const s = chaserSpot(); if (!s) return false;
+    spawnChaser(variant, s[0], s[1], s[2]); D.sinceChase = 0; D.sinceEvent = 0; D.pressure = Math.min(10, D.pressure + 2);
+    msg(variant === 'small' ? '¡Una cría de acechador! Es más rápida que tú.' : 'Algo te ha olido. No te quedes quieto.', variant === 'small' ? '#ff7ad8' : '#b49aff');
+    return true;
+  }
+  function rewardFor() { // lo que más falta ahora; si no falta nada, lo que toque
+    if (st.reserve < 15 && st.healLock <= 0) return { kind: 'heal' };
+    const w = st.weapon && WEAP[st.weapon.w];
+    if (w && ammoOf(w.ammo) < 6) return { kind: 'ammo', ammo: w.ammo, count: w.ammo === 'nucleos' ? randi(2, 3) : randi(4, 7) };
+    return rollType('normal');
+  }
+  function placeReward(big) {
+    const s = routeAhead() || directorSpot(3, 10, -1, 4, false) || directorSpot(1.5, 6, -.3, .3, false); if (!s) return false;
+    const it = big ? (Math.random() < .5 ? { kind: 'upgrade', up: pick(Object.keys(UPG)) } : { kind: 'weapon', w: Math.random() < .65 ? 'escopeta' : 'riel' }) : rewardFor();
+    placeContent(s[0], s[1], s[2], it, big ? 1 : .4);
+    return true;
+  }
+  // Encuentros según la altura (tier): la intensidad media sube, pero siempre con respiro entre picos
+  const ENCOUNTERS = [
+    [['imp']],
+    [['imp'], ['imp', 'skull'], ['chaser']],
+    [['imp', 'skull'], ['caco'], ['imp', 'chaser']],
+    [['imp', 'skull', 'caco'], ['caco', 'skull'], ['imp', 'imp', 'chaser']],
+  ];
+  const PEAKS = [
+    [['imp', 'imp']],
+    [['imp', 'chaser'], ['imp', 'imp', 'skull']],
+    [['imp', 'skull', 'chaser'], ['caco', 'skull']],
+    [['caco', 'imp', 'skull'], ['caco', 'imp', 'smallchaser'], ['imp', 'skull', 'skull', 'chaser']],
+  ];
+  function runGroup(group) {
+    let n = 0;
+    const cap = gen.tier >= 3 ? 5 : 4;
+    for (const t of group) {
+      if (nearEnemies() >= cap) break;
+      if (t === 'chaser' || t === 'smallchaser') n += placeChaser(t === 'chaser' ? 'normal' : 'small') ? 1 : 0;
+      else n += placeEnemy(t) ? 1 : 0;
+    }
+    return n > 0;
+  }
+  const tierOf = () => Math.min(3, gen.tier);
+  function directorBeat(kind, why) {
+    why = why || 'fase';
+    const D = DIR, wounded = st.hp < st.maxHp * .35;
+    // Híbrido: casi siempre decide el ritmo; a veces el azar cambia el momento por otro (o por nada)
+    let source = 'ritmo';
+    if (why !== 'necesidad' && Math.random() > RHYTHM_SHARE) { source = 'azar'; kind = pick(['presion', 'encuentro', 'recompensa', 'nada', 'nada']); }
+    D.decisions[source]++;
+    if (wounded && (kind === 'pico' || kind === 'encuentro')) kind = 'recompensa'; // herido: bajar la presión y dar una oportunidad
+    // Presupuesto de combate: si en el último minuto ya hubo mucha pelea (más del 40 % del tiempo) o hay una en curso
+    // con varios enemigos, no se añaden más: la partida es una onda, no un tiroteo continuo.
+    const saturated = D.ema.combate + D.ema.persecucion > .4 || (D.combatNow && nearEnemies() >= 2);
+    if (saturated && (kind === 'presion' || kind === 'encuentro' || kind === 'pico')) { kind = D.sinceReward > 12 ? 'recompensa' : 'nada'; why += ' (saturado)'; }
+    let done = false;
+    if (kind === 'despertar') { SFX.distant(); if (Math.random() < .5) done = placeReward(false); else done = true; }
+    else if (kind === 'presion') {
+      const t = tierOf();
+      const opts = t === 0 ? [['imp', 1]] : [['imp', 3], ['skull', 1], ['chaser', D.sinceChase > 20 ? 2 : 0]];
+      const pickT = wpick(opts)[0];
+      done = pickT === 'chaser' ? placeChaser('normal') : placeEnemy(pickT);
+    }
+    else if (kind === 'encuentro') done = runGroup(pick(ENCOUNTERS[tierOf()]));
+    else if (kind === 'pico') done = runGroup(pick(PEAKS[tierOf()]));
+    else if (kind === 'recompensa') done = placeReward(false);
+    else if (kind === 'grande') { if (!saturated) runGroup(pick(PEAKS[tierOf()])); done = placeReward(true); msg('La torre se agita: algo grande espera más arriba.', '#ffcc40'); }
+    else done = true; // exploración / nada: se deja respirar a la generación
+    // lo colocado salda su deuda aunque el jugador tarde en llegar: así no se amontonan encuentros esperándolo
+    if (done && kind !== 'nada' && kind !== 'exploracion') {
+      D.sinceEvent = 0;
+      if (kind === 'encuentro' || kind === 'pico' || kind === 'grande') D.sinceCombat = 0;
+      if (kind === 'recompensa' || kind === 'grande') D.sinceReward = 0;
+    }
+    D.beats.push({ t: +D.t.toFixed(1), kind, why, source, done });
+    if (D.beats.length > 40) D.beats.shift();
+    return done;
+  }
+
+  // ---- cada paso de simulación ----
+  function directorTick(dt) {
+    const D = DIR; D.t += dt;
+    for (const k of ['sinceEvent', 'sinceCombat', 'sinceReward', 'sinceDiscovery', 'sinceFall', 'sinceChase', 'sinceHealed', 'sinceBig']) D[k] += dt;
+    D.phaseT += dt; D.needCd -= dt; D.rewardT -= dt;
+    // combate en curso: enemigos cerca que ya van a por el jugador
+    let combat = false, chase = false;
+    for (const e of st.enemies) {
+      if (e.dead) continue;
+      const d = Math.hypot(e.x - st.px, e.y - st.py), dz = Math.abs(e.z - st.pz);
+      if (e.type === 'chaser') { if (d < 20) chase = true; continue; }
+      if (!combat && d < 12 && dz < 5 && (e.wind > 0 || e.moving || (e.type === 'skull' && e.state !== 'idle') || e.type === 'caco')
+        && clearPath(e.x, e.y, e.z + .3, st.px, st.py, st.pz + .6)) combat = true; // combate percibido: con línea de visión
+    }
+    if (combat) { D.sinceCombat = 0; D.sinceEvent = 0; D.pressure = Math.min(10, D.pressure + dt * .25); }
+    if (chase) { D.sinceEvent = 0; D.pressure = Math.min(10, D.pressure + dt * .15); }
+    // tiempo percibido de la partida (objetivo aproximado: 45 % travesía, 25 % combate, 10 % cada uno del resto)
+    const cat = chase ? 'persecucion' : combat ? 'combate' : D.rewardT > 0 ? 'recompensa' : CALM[D.name] ? 'recuperacion' : 'travesia';
+    D.time[cat] += dt; D.combatNow = combat;
+    const k = Math.min(1, dt / 45); D.ema.combate += ((cat === 'combate') - D.ema.combate) * k; D.ema.persecucion += ((cat === 'persecucion') - D.ema.persecucion) * k;
+    D.pressure = Math.max(0, D.pressure - dt * (CALM[D.name] ? .6 : .12));
+    D.highT = D.pressure >= 7 ? D.highT + dt : 0;
+    if (D.lastHp < st.maxHp && st.hp >= st.maxHp) D.sinceHealed = 0;
+    D.lastHp = st.hp;
+    // quieto y rama larga sin nada
+    const moving = keys.KeyW || keys.KeyA || keys.KeyS || keys.KeyD;
+    if (!moving && st.ground && !fireHeld && !combat) D.stillT += dt; else { D.stillT = 0; D.stillRolled = false; } // quieto sin pelear
+    D.branchT = Math.hypot(st.px - C, st.py - C) > 11 ? D.branchT + dt : 0;
+
+    // 1) protecciones que el azar nunca se salta
+    if (D.highT > 20 && !CALM[D.name]) { directorPhase('respiro', rnd(6, 10)); return; } // demasiada presión seguida
+    if (CALM[D.name]) { if (D.phaseT >= D.phaseLen) directorPhase('despertar', rnd(4, 8)); return; }
+    // 2) el ciclo de fases
+    if (D.phaseT >= D.phaseLen) {
+      let k = (D.phase + 1) % RHYTHM.length;
+      if (RHYTHM[k][0] === 'pico' && st.hp < st.maxHp * .35) k = RHYTHM.findIndex(r => r[0] === 'respiro'); // herido: sin pico
+      directorPhase(RHYTHM[k][0], rnd(RHYTHM[k][1], RHYTHM[k][2]));
+      return;
+    }
+    // 3) comportamiento del jugador: quieto demasiado tiempo → posible acechador (no justo después de curarse ni de caer)
+    if (D.stillT > 5 && !D.stillRolled && D.sinceFall > 25 && D.sinceChase > 30 && D.sinceHealed > 6) {
+      D.stillRolled = true;
+      if (Math.random() < .4 && placeChaser(gen.tier >= 1 && Math.random() < .15 ? 'small' : 'normal')) return;
+    }
+    // 4) necesidades: el centro no se puede quedar vacío
+    if (D.needCd > 0) return;
+    let need = null;
+    if (D.sinceBig > D.bigAt) { need = 'grande'; D.sinceBig = 0; D.bigAt = rnd(120, 240); }
+    else if (D.sinceReward > 25) need = 'recompensa';
+    else if (D.sinceCombat > 12 && st.hp >= st.maxHp * .35) need = 'encuentro';
+    else if (D.sinceEvent > 8) need = 'presion';
+    else if (D.branchT > 25 && D.sinceEvent > 5) need = Math.random() < .5 ? 'chaser' : 'encuentro';
+    if (need) {
+      D.needCd = 4;
+      if (need === 'chaser') { D.decisions.ritmo++; if (placeChaser('normal')) D.branchT = 0; }
+      else directorBeat(need, 'necesidad'); // si no encontró sitio, lo reintenta tras needCd
+      return;
+    }
+  }
+  // Resumen para el panel de sistemas y las pruebas
+  function directorSummary() {
+    const D = DIR, tot = Object.values(D.time).reduce((a, b) => a + b, 0) || 1;
+    const pct = Object.entries(D.time).map(([k, v]) => `${k} ${Math.round(v / tot * 100)} %`).join(' · ');
+    const dec = D.decisions.ritmo + D.decisions.azar || 1;
+    return `Ritmo: ${PHASE_NAME[D.name]} ${D.phaseT.toFixed(0)}/${D.phaseLen.toFixed(0)} s · presión ${D.pressure.toFixed(1)} · sin combate ${D.sinceCombat.toFixed(0)} s · sin recompensa ${D.sinceReward.toFixed(0)} s · decide el ritmo ${Math.round(D.decisions.ritmo / dec * 100)} % · ${pct}`;
+  }
   // ================= ESTADO =================
   let best = 0; try { best = +localStorage.getItem('forgex-doom-orbital-best') || 0; } catch (_) {}
   let started = false, time = 0;
@@ -1865,6 +2174,7 @@
     st.inv = [{ t: 'weapon', w: 'plasma' }, { t: 'shield' }, { t: 'box', ammo: 'celdas', count: 24 }];
     st.weapon = st.inv[0];
     initWorld();
+    directorReset();
     st.pa = gen.ang;
     msg('Asciende. La altura es lo único que cuenta.', '#5ff2e6');
     msg('Las ramas laterales pueden tener recursos… o nada.', '#a99cff');
@@ -1952,6 +2262,7 @@
   // ================= DAÑO Y MUERTE =================
   function hurtPlayer(n, kx = 0, ky = 0, kz = 0) {
     st.hp -= n; st.dmg = .35; SFX.hurt(); st.kx += kx; st.ky += ky; st.vz += kz; if (kz) st.ground = false;
+    directorNote('hurt');
     if (st.hp <= 0) die();
   }
   function die() {
@@ -1965,11 +2276,15 @@
     const cz = e.type === 'imp' ? e.z + .6 : e.z;
     burst(e.x, e.y, cz, 8, [rgb(200, 10, 10), rgb(255, 60, 30), rgb(120, 0, 0)], 1.6);
     if (e.type === 'skull' && e.state !== 'dash') { e.state = 'stun'; e.t = .5; }
+    if (e.type === 'chaser') e.back = Math.max(e.back || 0, .25); // el golpe lo frena: darse la vuelta y disparar compensa
+    directorNote('hit');
     if (e.hp > 0) return;
     e.dead = true; e.deadT = 0; SFX.die(volAt(e.x, e.y, e.z));
     burst(e.x, e.y, cz, 34, [rgb(200, 10, 10), rgb(255, 120, 30), rgb(255, 220, 90)], 3);
     if (e.type === 'imp' && Math.random() < .4) addItem('ammo', e.x, e.y, e.z + .4, { ammo: 'celdas', count: randi(1, 3), vz: 2 });
     if (e.type === 'caco' && Math.random() < .6) addItem('ammo', e.x, e.y, e.z, { ammo: pick(['celdas', 'cartuchos', 'nucleos']), count: randi(1, 4) });
+    if (e.type === 'chaser' && Math.random() < (e.variant === 'small' ? .3 : .5)) addItem('ammo', e.x, e.y, e.z, { ammo: 'celdas', count: e.variant === 'small' ? 1 : randi(1, 3), vz: 1 });
+    directorNote('kill');
   }
 
   // ================= DISPARO =================
@@ -1979,7 +2294,7 @@
       if (e.dead) continue;
       const dx = e.x - st.px, dy = e.y - st.py, along = dx * ca + dy * sa;
       if (along <= 0 || along > range) continue;
-      const rad = e.type === 'caco' ? .8 : .45;
+      const rad = e.type === 'caco' ? .8 : e.type === 'chaser' ? CHASER[e.variant].r : .45;
       if (Math.abs(-dx * sa + dy * ca) > rad) continue;
       const ez = e.type === 'imp' ? e.z + .55 : e.z;
       if (clearPath(st.px, st.py, camZ, e.x, e.y, ez)) hits.push([along, e]);
@@ -2058,7 +2373,7 @@
     else st.stuck = 0;
     // caída al vacío: daño, vuelta al punto seguro y curación bloqueada
     if (st.pz < st.cp[2] - 14) {
-      respawnSafe(); st.healLock = FALL_LOCK; SFX.fall();
+      respawnSafe(); st.healLock = FALL_LOCK; SFX.fall(); directorNote('fall');
       msg(`Caíste al vacío: −${FALL_DMG} de vida. Curación bloqueada ${FALL_LOCK} s.`, '#ff8a7a');
       hurtPlayer(FALL_DMG); st.dmg = .6;
     }
@@ -2109,6 +2424,45 @@
     }
     if (!move(vx, vy, vz)) { e.orbit = -(e.orbit || 1); move(0, 0, 2); } // pared: cambia de sentido y sube
   }
+  // ACECHADOR: perseguidor que flota a la altura del pecho (en una torre de plataformas uno a pie no podría seguirte).
+  // No dispara ni embiste: te encuentra, te sigue e intenta mantener el contacto para que no te quedes quieto.
+  // Normal: 1,1× tu velocidad («tengo tiempo, pero no puedo quedarme aquí»). Cría: 1,5×, frágil, poco daño y peor
+  // esquivando obstáculos (solo sube; no rodea): el momento de pánico. Si no te alcanza a tiempo, se disipa.
+  const CHASER = {
+    normal: { speed: MOVE * 1.1, hp: 4, dmg: 8, life: [14, 20], r: .5, size: .95, name: 'Acechador' },
+    small: { speed: MOVE * 1.5, hp: 2, dmg: 6, life: [5, 8], r: .35, size: .6, name: 'Cría de acechador' },
+  };
+  function spawnChaser(variant, x, y, z) {
+    spawn('chaser', x, y, z);
+    const e = st.enemies[st.enemies.length - 1], K = CHASER[variant];
+    Object.assign(e, { variant, hp: K.hp, life: rnd(K.life[0], K.life[1]), cd: 0, back: 0, stuckT: 0 });
+    SFX.chaser(variant === 'small');
+    return e;
+  }
+  function stepChaser(e, dt, ex, ey, chest, d3) {
+    const K = CHASER[e.variant];
+    e.life -= dt; e.cd -= dt;
+    if (e.life <= 0 || d3 > 30) { // se cansa o te perdió: se disipa sin dejar nada
+      e.dead = true; e.deadT = 0; SFX.chaserFade(volAt(e.x, e.y, e.z)); burst(e.x, e.y, e.z, 14, [rgb(90, 50, 150), rgb(40, 20, 70)], 1.2); return;
+    }
+    const tz = chest + .1 - e.z, L = Math.hypot(ex, ey, tz) || 1, s = K.speed * dt;
+    const move = (vx, vy, vz) => { const nx = e.x + vx, ny = e.y + vy, nz = e.z + vz;
+      if (solidAt(nx, ny, nz) || solidAt(nx, ny, nz + .3)) return false; e.x = nx; e.y = ny; e.z = nz; return true; };
+    if (e.back > 0) { e.back -= dt; move(-ex / L * s * .6, -ey / L * s * .6, .5 * dt); }
+    else if (L > .55) {
+      let ok = move(ex / L * s, ey / L * s, tz / L * s);
+      if (!ok) ok = move(0, 0, s); // obstáculo: sube por encima
+      if (!ok && e.variant === 'normal') { const px = -ey / L, py = ex / L, side = (e.stuckT | 0) % 2 ? -1 : 1; // la normal lo rodea
+        ok = move(px * s * side, py * s * side, 0) || move(-px * s * side, -py * s * side, 0); }
+      e.stuckT = ok ? 0 : e.stuckT + dt;
+    }
+    if (e.cd <= 0 && Math.hypot(st.px - e.x, st.py - e.y, chest - e.z) < .8) { // contacto
+      const v = volAt(e.x, e.y, e.z);
+      e.cd = 1.2; e.back = .5;
+      if (st.shieldT > 0) { SFX.block(); burst(e.x, e.y, e.z, 12, [rgb(95, 242, 230), rgb(255, 255, 255)], 2); e.back = .9; }
+      else { SFX.chaserBite(v); const dh = Math.hypot(ex, ey) || 1; hurtPlayer(K.dmg, ex / dh * 3, ey / dh * 3, 1); }
+    }
+  }
   function stepEnemy(e, dt) { // devuelve true si la criatura terminó de desaparecer
     const camZ = st.pz + EYE, chest = st.pz + .5;
     if (e.dead) { // animación de muerte; calaveras y cacodemonios caen y desaparecen
@@ -2118,6 +2472,7 @@
     }
     e.hurt = Math.max(0, e.hurt - dt);
     const ex = st.px - e.x, ey = st.py - e.y, d = Math.hypot(ex, ey), d3 = Math.hypot(ex, ey, chest - e.z);
+    if (e.type === 'chaser') { stepChaser(e, dt, ex, ey, chest, d3); return false; }
     if (d3 > 28) return false;
     const eyeZ = e.type === 'imp' ? e.z + .7 : e.z;
     const sees = d3 < 16 && clearPath(e.x, e.y, eyeZ, st.px, st.py, camZ);
@@ -2193,7 +2548,7 @@
       let edt = dt;
       if (!e.dead) {
         const d3 = Math.hypot(st.px - e.x, st.py - e.y, chest - e.z);
-        const busy = e.wind > 0 || e.hurt > 0 || (e.type === 'skull' && e.state !== 'idle');
+        const busy = e.wind > 0 || e.hurt > 0 || (e.type === 'skull' && e.state !== 'idle') || e.type === 'chaser';
         if (d3 > 28) C_.aiFrozen++;
         else if (lod && !busy && d3 > 12) { C_.aiLod++; e.lodAcc = (e.lodAcc || 0) + dt; if (e.lodAcc < farDt) continue; edt = e.lodAcc; e.lodAcc = 0; }
         else { C_.aiFull++; if (e.lodAcc) { edt += e.lodAcc; e.lodAcc = 0; } }
@@ -2596,6 +2951,10 @@
           const spr = e.dead ? F.death[(e.deadT || 0) < .15 ? 0 : 1] : e.hurt > 0 ? F.hurt : e.state === 'dash' ? F.dash
             : e.state === 'tele' ? F.tele[(time * 12 | 0) & 1] : F.n[((time * 10 + e.ph * 3) | 0) & 3];
           drawSprite(spr, e.x + sh, e.y + sh, e.z - .32, .66, .66, a);
+        } else if (e.type === 'chaser') {
+          const F = chaserFrames[e.variant], s = CHASER[e.variant].size;
+          const spr = e.dead ? F.death[(e.deadT || 0) < .2 ? 0 : 1] : e.hurt > 0 ? F.hurt : e.cd > .8 ? F.lunge : F.n[((time * 9 + e.ph * 3) | 0) & 3];
+          drawSprite(spr, e.x, e.y, e.z - s * .5 + (e.dead ? 0 : Math.sin(time * 3 + e.ph) * .04), s, s, a);
         } else {
           const F = cacoFrames, blink = ((time + e.ph * 3) % 4.2) < .14;
           const spr = e.dead ? F.death[(e.deadT || 0) < .2 ? 0 : 1] : e.hurt > 0 ? F.hurt : e.wind > 0 ? F.tele[e.wind > .45 ? 0 : 1]
@@ -2873,6 +3232,7 @@
       `RT: ${RT_NAMES[EFF.rt]}${EFF.rt < CFG.rt.mode ? ' (recortado por AUTO)' : ''} · alcance ${CFG.rt.maxDist} m`,
       BACKEND === 'webgpu' ? `RT en GPU: ${CFG.rt.rays} rayos/píxel · temporal ${on(CFG.rt.temporal)} · denoise ${['no', 'bajo', 'medio', 'alto'][CFG.rt.denoise]} · indirecta ${on(CFG.rt.indirect)}` : 'Acumulación temporal, denoise y luz indirecta: solo con WebGPU',
       `Luces dinámicas: hasta ${EFF.lights} · partículas ${['pocas', 'normales', 'muchas'][EFF.parts]} · bloom ${on(CFG.graphics.bloom)} · grano ${on(CFG.graphics.grain)}`,
+      directorSummary(),
     ];
     ctx.save(); ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.font = PM(600, 11);
     const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 16, y0 = CFG.debug.overlay ? 100 + (PERF.lines ? PERF.lines.length : 8) * 15 + 12 : 100;
@@ -3045,6 +3405,7 @@
     if (fireHeld && st.cd <= 0) shoot();
     const ta = performance.now(); updateEnemies(dt); simAi += performance.now() - ta;
     updateProjectiles(dt); updateItems(dt);
+    directorTick(dt);
     st.ambT -= dt; if (st.ambT <= 0) { SFX.distant(); st.ambT = rnd(9, 22) * (1 - .5 * Math.min(1, axisT(st.px, st.py))); }
     { const bi = bandOf(st.px, st.py); if (bi > st.band) msg(`Te alejas del eje: ${BANDS[bi][2].toLowerCase()}.`, BAND_COL[bi]); st.band = bi; }
     if (st.hp < st.maxHp * .3) { st.hbT -= dt; if (st.hbT <= 0) { SFX.heart(); st.hbT = .95; } }
@@ -3053,7 +3414,7 @@
     if (CHUNKS.stream !== CFG.memory.chunkStreaming) setChunkStreaming(CFG.memory.chunkStreaming);
     else streamChunks(st.px, st.py, st.pz);
     let z = null; for (let q = ships.length - 1; q >= 0; q--) { const s = ships[q]; if (st.px >= s.x0 && st.px < s.x0 + s.w && st.py >= s.y0 && st.py < s.y0 + s.h && st.pz >= s.zf - .6 && st.pz < s.zf + (s.hgt || CH)) { z = s; break; } }
-    if (z && z !== st.zoneRef) { st.zone = z.name; st.zoneT = 2.6; }
+    if (z && z !== st.zoneRef) { st.zone = z.name; st.zoneT = 2.6; directorNote('discovery'); }
     st.zoneRef = z || null;
   }
   let simAi = 0;
@@ -3334,7 +3695,7 @@
     get lights() { return lights; }, get st() { return st; }, get ships() { return ships; }, get gen() { return gen; }, get parts() { return PARTS.n; },
     get CAM() { return CAM; }, get FR() { return FR; }, get sprN() { return sprN; }, get SPRQ() { return SPRQ; },
     get px() { return px; }, get py() { return py; }, get camZ() { return camZ; }, prepareFrame, renderWorld, rustRender, gpuRender,
-    nextStep, makeFarlands, plat, safeSpot, CHUNKS, chunkStats, chunkWindow, chunkLayer, streamChunks, forLoadedBlocks, pruneWorld, setChunkStreaming, CHUNK_XY, CHUNK_Z, get WK() { return WK; }, get WORKERS() { return WORKERS; }, R_EXPLORE, chanceAt, contentAt, bandOf, regionAt, axisT, C, R_MAX, MW, get cells() { return cells; },
+    nextStep, makeFarlands, plat, safeSpot, CHUNKS, chunkStats, chunkWindow, chunkLayer, streamChunks, forLoadedBlocks, pruneWorld, setChunkStreaming, CHUNK_XY, CHUNK_Z, get WK() { return WK; }, get director() { return DIR; }, directorTick, directorBeat, directorNote, directorSummary, spawnChaser, CHASER, RHYTHM_SHARE, get WORKERS() { return WORKERS; }, R_EXPLORE, chanceAt, contentAt, bandOf, regionAt, axisT, C, R_MAX, MW, get cells() { return cells; },
     tp: (x, y, z, a) => {
       st.px = x; st.py = y; st.pz = z; st.pa = a; st.vz = 0; st.ox = undefined; started = true;
       st.cp = [x, y, z]; st.healLock = 0;

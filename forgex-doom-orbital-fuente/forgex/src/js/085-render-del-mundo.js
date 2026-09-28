@@ -352,6 +352,10 @@
           const spr = e.dead ? F.death[(e.deadT || 0) < .15 ? 0 : 1] : e.hurt > 0 ? F.hurt : e.state === 'dash' ? F.dash
             : e.state === 'tele' ? F.tele[(time * 12 | 0) & 1] : F.n[((time * 10 + e.ph * 3) | 0) & 3];
           drawSprite(spr, e.x + sh, e.y + sh, e.z - .32, .66, .66, a);
+        } else if (e.type === 'chaser') {
+          const F = chaserFrames[e.variant], s = CHASER[e.variant].size;
+          const spr = e.dead ? F.death[(e.deadT || 0) < .2 ? 0 : 1] : e.hurt > 0 ? F.hurt : e.cd > .8 ? F.lunge : F.n[((time * 9 + e.ph * 3) | 0) & 3];
+          drawSprite(spr, e.x, e.y, e.z - s * .5 + (e.dead ? 0 : Math.sin(time * 3 + e.ph) * .04), s, s, a);
         } else {
           const F = cacoFrames, blink = ((time + e.ph * 3) % 4.2) < .14;
           const spr = e.dead ? F.death[(e.deadT || 0) < .2 ? 0 : 1] : e.hurt > 0 ? F.hurt : e.wind > 0 ? F.tele[e.wind > .45 ? 0 : 1]

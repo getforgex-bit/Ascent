@@ -143,6 +143,14 @@ El script `run_all.sh` retornará código de salida `0` si todas las pruebas pas
   node pruebas/chunk_test.js
   ```
 
+### 2.12b `ritmo.js` — Director de Ritmo y acechador
+- **Qué verifica** (Chromium, motor Rust): acechador normal a 1,1× y cría a 1,5× la velocidad del jugador, su vida
+  (4 y 2) y su daño por contacto (8 y 6); el escudo lo repele; se disipa al acabar su tiempo; muere a disparos. Director:
+  como mucho ~12 s seguidos sin que ocurra nada; tras una caída, recuperación sin presión ni acechadores; quieto más de
+  5 s sin pelear → acechador en ~40 % de los casos (nunca en los 25 s tras caer); herido, el pico se convierte en
+  recompensa; el ritmo decide ~75 % de los momentos; las ramas no pasan de 7 plataformas seguidas sin nada.
+- **Cómo ejecutarla:** `node pruebas/ritmo.js`
+
 ### 2.13 `c1_physics.js` & `c2_simd.js` — Física y Aritmética SIMD
 - **Qué verifica:** `c1_physics.js` valida movimiento, colisiones horizontales/verticales, salto parabólico, daño por caída y regeneración Fibonacci. `c2_simd.js` valida operaciones vectoriales SIMD de 4 carriles (`sep4`, `dist4`, `simd_los4`, `simd_damage4`, `hitscan`).
 - **Cómo ejecutarla:**

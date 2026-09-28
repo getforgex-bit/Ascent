@@ -5,7 +5,7 @@
       if (e.dead) continue;
       const dx = e.x - st.px, dy = e.y - st.py, along = dx * ca + dy * sa;
       if (along <= 0 || along > range) continue;
-      const rad = e.type === 'caco' ? .8 : .45;
+      const rad = e.type === 'caco' ? .8 : e.type === 'chaser' ? CHASER[e.variant].r : .45;
       if (Math.abs(-dx * sa + dy * ca) > rad) continue;
       const ez = e.type === 'imp' ? e.z + .55 : e.z;
       if (clearPath(st.px, st.py, camZ, e.x, e.y, ez)) hits.push([along, e]);

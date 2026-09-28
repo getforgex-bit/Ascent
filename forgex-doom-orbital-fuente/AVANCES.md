@@ -306,6 +306,57 @@ el sistema de chunks contra el juego real; `streaming_test.js` prueba `w_remove_
 `d3_memory.js` se retiró (usaba la API de streaming eliminada y ya fallaba antes: exigía un 60 % de reducción sobre su
 propia simulación del mundo).
 
+
+### Cambios del 28 de septiembre de 2026: Director de Ritmo y acechador
+**Problema**: la ruta central decidía con tiradas independientes (10 % de enemigo, 5 % de munición por plataforma) y las
+ramas colocaban sus puntos de interés tras una distancia aleatoria. Con un jugador automático que sube y dispara,
+el build anterior dejaba entre 7,8 y 31,3 s seguidos sin que pasara nada (hasta 53 s acumulados por encima de 10 s en
+150 s de partida).
+
+**Director de Ritmo** (`052-director-de-ritmo.js`), encima de la generación:
+- Memoria: presión, tiempo sin evento, sin combate, sin recompensa, sin descubrimiento, desde la última caída,
+  persecución y curación completa, tiempo quieto sin pelear, tiempo en una rama, racha de combate y reparto del tiempo
+  percibido (travesía, combate, persecución, recompensa, recuperación).
+- Ciclo de 35–60 s: despertar (4–8 s) → presión (4–8) → encuentro (5–12) → recompensa (3–7) → exploración (6–15) →
+  pico (6–15) → respiro (5–10). Cada fase elige el TIPO de momento; el contenido (qué enemigo, qué objeto, dónde) es
+  aleatorio y depende de la altura (`gen.tier`): la intensidad media sube, pero siempre con respiro entre picos.
+- Necesidades: 8 s sin evento → presión; 12 s sin combate → encuentro; 25 s sin recompensa → recompensa (lo que más
+  falte: vial si la reserva está baja, munición del arma en mano si queda poca); más de 25 s en una rama sin nada →
+  acechador o encuentro; cada 2–4 min, un momento grande (encuentro fuerte + mejora o arma). Lo que se coloca va a la
+  siguiente plataforma de la ruta por encima del jugador, o a un suelo cercano fuera de la vista si está en una rama.
+- Protecciones que el azar nunca se salta: tras una caída, recuperación de 5–8 s con presión 0, los acechadores se
+  disipan, ninguno nuevo en 25 s y a veces un poco de munición cerca; herido (menos del 35 %), los picos y encuentros se
+  convierten en recompensa; con presión alta 20 s seguidos, respiro. Presupuesto de combate: si en el último minuto hubo
+  más de un 40 % de combate o persecución, o hay una pelea en curso con 2+ enemigos cerca, no se añaden enemigos.
+- Híbrido: el ritmo decide el 75 % de los momentos y el azar el 25 % (otro momento o ninguno). Las tiradas de
+  enemigos de la ruta central quedan al 40 %; el resto lo pone el Director.
+- Ramas: «latidos» cada 3–5 plataformas (5–8 en las profundas o lejanas). En regiones estériles el latido puede ser solo
+  un contenedor, a veces vacío. La racha más larga medida es de 5 plataformas vacías (antes no había límite).
+
+**Acechador** (`080-enemigos.js`, sprites en `020`): perseguidor que flota a la altura del pecho (en una torre de
+plataformas, uno a pie no podría seguir al jugador). No dispara ni embiste: encuentra, sigue e intenta mantener el
+contacto. Aparece por comportamiento del jugador (quieto más de 5 s sin pelear → 40 %; demasiado tiempo en una rama)
+o como contenido de presión, encuentros y picos; nunca como castigo tras una caída.
+
+|  | Normal | Cría |
+|---|---:|---:|
+| Velocidad | 3,74 u/s (1,1×) | 5,1 u/s (1,5×) |
+| Vida | 4 | 2 |
+| Daño por contacto | 8 | 6 |
+| Persigue | 14–20 s y se disipa | 5–8 s y se disipa |
+| Obstáculos | sube o los rodea | solo sube |
+| Aparición | habitual | rara (15 % de los acechadores, desde el tier 1) |
+
+Al recibir un disparo retrocede un instante (darse la vuelta y disparar compensa); el escudo lo repele.
+
+**Medido** (jugador automático, 150 s, 5 partidas por versión): máximo sin eventos 5,1–11,4 s y como mucho 1,6 s
+acumulados por encima de 10 s. En 4 de las 5 partidas el bot llegó más alto (z = 44–95 frente a 17–36 sin Director),
+porque las recompensas de la ruta tiran de él; en la otra se atascó peleando en la base. El reparto de tiempo percibido del bot no es representativo de un jugador real (se queda quieto disparando a
+blancos que a veces no puede alcanzar): el objetivo de 45 % travesía / 25 % combate / 10 % persecución / 10 %
+recompensa / 10 % recuperación hay que comprobarlo jugando, con el panel «Mostrar sistemas activos» (línea «Ritmo»).
+
+Pendiente: la simulación en Rust (`sim.rs`) no tiene el acechador ni el Director (sigue desconectada del juego).
+
 ---
 
 ## 12. Agente E — Configuración central, instrumentación, tests y CI

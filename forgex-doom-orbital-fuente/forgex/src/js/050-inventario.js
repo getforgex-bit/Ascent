@@ -33,24 +33,25 @@
         it.open = true;
         if (!it.content) { SFX.emptyCrate(); msg('El contenedor está vacío.', '#a99cff'); }
         else { SFX.open(); addItem(it.content.kind, it.x, it.y, it.z + .6, Object.assign({}, it.content, { vz: 3 })); msg('Algo había dentro…'); }
+        directorNote('discovery');
         return;
       case 'ammo': {
         const n = pickupAmmo(it.ammo, it.count);
         if (!n) return denied('Sin espacio: suelta algo con Q o consigue una caja.');
-        it.count -= n; SFX.pick();
+        it.count -= n; SFX.pick(); directorNote('reward');
         msg(`+${n} ${AMMO[it.ammo].name}` + (it.count ? ` · ${it.count} se quedan en el suelo` : ''), AMMO[it.ammo].col);
         if (!it.count) rm(); return;
       }
       case 'box': {
         const hasLoose = st.inv.some(i => i.t === 'loose' && i.ammo === it.ammo);
         if (freeSlots() < 1 && !(hasLoose && it.count < st.boxCap)) return denied('Necesitas 1 espacio libre para la caja.');
-        st.inv.push({ t: 'box', ammo: it.ammo, count: it.count }); consolidate(it.ammo); SFX.pick(); rm();
+        st.inv.push({ t: 'box', ammo: it.ammo, count: it.count }); consolidate(it.ammo); SFX.pick(); rm(); directorNote('reward');
         return msg(`Caja de ${AMMO[it.ammo].name} (${it.count}/${st.boxCap}). Guarda hasta ${st.boxCap} de ese tipo.`, AMMO[it.ammo].col);
       }
       case 'weapon': {
         if (freeSlots() < 2) return denied('Un arma ocupa 2 espacios. Suelta algo con Q.');
         const w = { t: 'weapon', w: it.w }; st.inv.push(w); sortInv(); if (!st.weapon) st.weapon = w;
-        SFX.pick(); rm(); return msg(`${WEAP[it.w].name} · usa ${AMMO[WEAP[it.w].ammo].name}`, '#ffdc50');
+        SFX.pick(); rm(); directorNote('reward'); return msg(`${WEAP[it.w].name} · usa ${AMMO[WEAP[it.w].ammo].name}`, '#ffdc50');
       }
       case 'shield':
         if (st.inv.some(i => i.t === 'shield')) return denied('Ya llevas un escudo.');
@@ -58,9 +59,9 @@
         st.inv.push({ t: 'shield' }); sortInv(); SFX.pick(); rm(); return msg('Escudo recuperado.', '#5ff2e6');
       case 'heal':
         if (st.reserve >= st.reserveMax - .5) return denied('Tu reserva de curación ya está llena.');
-        st.reserve = Math.min(st.reserveMax, st.reserve + 25); SFX.pick(); rm(); return msg('+25 de reserva de curación.', '#7dff4a');
+        st.reserve = Math.min(st.reserveMax, st.reserve + 25); SFX.pick(); rm(); directorNote('reward'); return msg('+25 de reserva de curación.', '#7dff4a');
       case 'upgrade':
-        UPG[it.up].apply(st); SFX.pick(); rm(); return msg(`Mejora: ${UPG[it.up].name}, ${UPG[it.up].desc}.`, '#ffcc40');
+        UPG[it.up].apply(st); SFX.pick(); rm(); directorNote('reward'); return msg(`Mejora: ${UPG[it.up].name}, ${UPG[it.up].desc}.`, '#ffcc40');
     }
   }
   function dropSelected() {

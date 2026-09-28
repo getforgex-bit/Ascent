@@ -296,6 +296,50 @@
     return { n, blink, tele, hurt, death };
   })();
 
+  // ===== ACECHADOR: sombra flotante con un ojo anular y jirones de humo (perseguidor) =====
+  // La cría usa la misma forma con otra paleta (más viva, para que se lea como «rápida» de un vistazo).
+  const CHASER_PAL = {
+    normal: { core: ['#5a3a8a', '#2a1646', '#0a0412'], wisp: 'rgba(70,40,120,', eye: '#c8ff3a', iris: '#5aa010', maw: '#ff5a2a' },
+    small: { core: ['#ff7ad8', '#8a1a8a', '#1a0420'], wisp: 'rgba(200,60,200,', eye: '#7afcff', iris: '#1a9ab8', maw: '#ffe25a' },
+  };
+  function drawChaser(g, e, P) {
+    const C = CHASER_PAL[P.v], f = P.frame || 0, cx = 64, cy = 58, lunge = P.lunge ? 1 : 0;
+    // jirones de humo que cuelgan y ondulan
+    for (let k = 0; k < 7; k++) {
+      const x = cx - 30 + k * 10, len = 34 + 14 * Math.abs(Math.sin(k * 1.9 + f * 1.4)), sway = Math.sin(f * 1.3 + k) * 6;
+      g.fillStyle = lin(g, x, cy + 10, x + sway, cy + 10 + len, [[0, C.wisp + '.95)'], [1, C.wisp + '0)']]);
+      g.beginPath(); g.moveTo(x - 6, cy + 8); g.quadraticCurveTo(x + sway * .5, cy + 10 + len * .6, x + sway, cy + 10 + len); g.quadraticCurveTo(x + sway * .5 + 3, cy + 10 + len * .5, x + 6, cy + 8); g.fill();
+    }
+    // cuerpo encorvado hacia delante
+    g.fillStyle = rad2(g, cx - 10, cy - 14, 3, 40, [[0, C.core[0]], [.55, C.core[1]], [1, C.core[2]]]);
+    g.beginPath(); g.ellipse(cx, cy, 34 + lunge * 3, 28 - lunge * 2, 0, 0, 7); g.fill();
+    // púas del lomo
+    g.fillStyle = C.core[2];
+    for (let k = 0; k < 5; k++) { const x = cx - 20 + k * 10; g.beginPath(); g.moveTo(x - 5, cy - 22); g.lineTo(x + Math.sin(f + k) * 2, cy - 38 - (k % 2) * 6); g.lineTo(x + 5, cy - 22); g.fill(); }
+    // ojo anular que brilla
+    const ey = cy - 4, er = 12 + lunge * 2;
+    both(g, e, c => { c.fillStyle = rad2(c, cx, ey, 2, er + 6, [[0, '#ffffff'], [.35, C.eye], [.8, C.iris], [1, 'rgba(0,0,0,0)']]); c.beginPath(); c.arc(cx, ey, er + 6, 0, 7); c.fill(); });
+    g.fillStyle = '#050208'; g.beginPath(); g.ellipse(cx, ey, 3 + lunge * 2, 8, 0, 0, 7); g.fill();
+    // boca: una raja con dientes que se abre al lanzarse
+    const my = cy + 14, mh = 3 + lunge * 9;
+    both(g, e, c => { c.fillStyle = lunge ? C.maw : 'rgba(0,0,0,0)'; c.beginPath(); c.ellipse(cx, my + mh * .4, 16, mh * .6, 0, 0, 7); c.fill(); });
+    g.fillStyle = '#12060e'; g.beginPath(); g.moveTo(cx - 18, my); g.quadraticCurveTo(cx, my + mh + 4, cx + 18, my); g.quadraticCurveTo(cx, my + 3, cx - 18, my); g.fill();
+    g.fillStyle = '#efe6f0'; for (let k = 0; k < 7; k++) { const x = cx - 13 + k * 4.3; g.beginPath(); g.moveTo(x - 1.6, my + 1); g.lineTo(x, my + 5 + lunge * 2); g.lineTo(x + 1.6, my + 1); g.fill(); }
+    if (P.torn) { g.strokeStyle = '#000'; g.lineWidth = 3; g.beginPath(); g.moveTo(cx - 24, cy - 14); g.lineTo(cx - 4, cy + 4); g.lineTo(cx - 12, cy + 18); g.moveTo(cx + 20, cy - 16); g.lineTo(cx + 8, cy + 8); g.stroke(); }
+  }
+  const chaserFrames = (() => {
+    const out = {};
+    for (const v of ['normal', 'small']) {
+      const n = [0, 1, 2, 3].map(f => spriteHD((g, e) => drawChaser(g, e, { v, frame: f })));
+      const lunge = spriteHD((g, e) => drawChaser(g, e, { v, frame: 1, lunge: true }));
+      const hurt = tintHD(spriteHD((g, e) => drawChaser(g, e, { v, frame: 2 })), [255, 255, 255], .55);
+      const death = [spriteHD((g, e) => drawChaser(g, e, { v, frame: 3, torn: true, lunge: true })),
+        spriteHD((g, e) => { g.globalAlpha = e.globalAlpha = .55; drawChaser(g, e, { v, frame: 0, torn: true }); })];
+      out[v] = { n, lunge, hurt, death };
+    }
+    return out;
+  })();
+
   // ===== COFRE: caja blindada en 3/4 con tapa, cierre luminoso y bandas de peligro =====
   function drawChest(g, e, P) {
     const open = P.open, lockCol = P.lock || '#5ff2e6';

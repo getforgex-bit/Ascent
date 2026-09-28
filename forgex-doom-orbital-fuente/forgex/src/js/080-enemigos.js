@@ -18,6 +18,45 @@
     }
     if (!move(vx, vy, vz)) { e.orbit = -(e.orbit || 1); move(0, 0, 2); } // pared: cambia de sentido y sube
   }
+  // ACECHADOR: perseguidor que flota a la altura del pecho (en una torre de plataformas uno a pie no podría seguirte).
+  // No dispara ni embiste: te encuentra, te sigue e intenta mantener el contacto para que no te quedes quieto.
+  // Normal: 1,1× tu velocidad («tengo tiempo, pero no puedo quedarme aquí»). Cría: 1,5×, frágil, poco daño y peor
+  // esquivando obstáculos (solo sube; no rodea): el momento de pánico. Si no te alcanza a tiempo, se disipa.
+  const CHASER = {
+    normal: { speed: MOVE * 1.1, hp: 4, dmg: 8, life: [14, 20], r: .5, size: .95, name: 'Acechador' },
+    small: { speed: MOVE * 1.5, hp: 2, dmg: 6, life: [5, 8], r: .35, size: .6, name: 'Cría de acechador' },
+  };
+  function spawnChaser(variant, x, y, z) {
+    spawn('chaser', x, y, z);
+    const e = st.enemies[st.enemies.length - 1], K = CHASER[variant];
+    Object.assign(e, { variant, hp: K.hp, life: rnd(K.life[0], K.life[1]), cd: 0, back: 0, stuckT: 0 });
+    SFX.chaser(variant === 'small');
+    return e;
+  }
+  function stepChaser(e, dt, ex, ey, chest, d3) {
+    const K = CHASER[e.variant];
+    e.life -= dt; e.cd -= dt;
+    if (e.life <= 0 || d3 > 30) { // se cansa o te perdió: se disipa sin dejar nada
+      e.dead = true; e.deadT = 0; SFX.chaserFade(volAt(e.x, e.y, e.z)); burst(e.x, e.y, e.z, 14, [rgb(90, 50, 150), rgb(40, 20, 70)], 1.2); return;
+    }
+    const tz = chest + .1 - e.z, L = Math.hypot(ex, ey, tz) || 1, s = K.speed * dt;
+    const move = (vx, vy, vz) => { const nx = e.x + vx, ny = e.y + vy, nz = e.z + vz;
+      if (solidAt(nx, ny, nz) || solidAt(nx, ny, nz + .3)) return false; e.x = nx; e.y = ny; e.z = nz; return true; };
+    if (e.back > 0) { e.back -= dt; move(-ex / L * s * .6, -ey / L * s * .6, .5 * dt); }
+    else if (L > .55) {
+      let ok = move(ex / L * s, ey / L * s, tz / L * s);
+      if (!ok) ok = move(0, 0, s); // obstáculo: sube por encima
+      if (!ok && e.variant === 'normal') { const px = -ey / L, py = ex / L, side = (e.stuckT | 0) % 2 ? -1 : 1; // la normal lo rodea
+        ok = move(px * s * side, py * s * side, 0) || move(-px * s * side, -py * s * side, 0); }
+      e.stuckT = ok ? 0 : e.stuckT + dt;
+    }
+    if (e.cd <= 0 && Math.hypot(st.px - e.x, st.py - e.y, chest - e.z) < .8) { // contacto
+      const v = volAt(e.x, e.y, e.z);
+      e.cd = 1.2; e.back = .5;
+      if (st.shieldT > 0) { SFX.block(); burst(e.x, e.y, e.z, 12, [rgb(95, 242, 230), rgb(255, 255, 255)], 2); e.back = .9; }
+      else { SFX.chaserBite(v); const dh = Math.hypot(ex, ey) || 1; hurtPlayer(K.dmg, ex / dh * 3, ey / dh * 3, 1); }
+    }
+  }
   function stepEnemy(e, dt) { // devuelve true si la criatura terminó de desaparecer
     const camZ = st.pz + EYE, chest = st.pz + .5;
     if (e.dead) { // animación de muerte; calaveras y cacodemonios caen y desaparecen
@@ -27,6 +66,7 @@
     }
     e.hurt = Math.max(0, e.hurt - dt);
     const ex = st.px - e.x, ey = st.py - e.y, d = Math.hypot(ex, ey), d3 = Math.hypot(ex, ey, chest - e.z);
+    if (e.type === 'chaser') { stepChaser(e, dt, ex, ey, chest, d3); return false; }
     if (d3 > 28) return false;
     const eyeZ = e.type === 'imp' ? e.z + .7 : e.z;
     const sees = d3 < 16 && clearPath(e.x, e.y, eyeZ, st.px, st.py, camZ);
@@ -102,7 +142,7 @@
       let edt = dt;
       if (!e.dead) {
         const d3 = Math.hypot(st.px - e.x, st.py - e.y, chest - e.z);
-        const busy = e.wind > 0 || e.hurt > 0 || (e.type === 'skull' && e.state !== 'idle');
+        const busy = e.wind > 0 || e.hurt > 0 || (e.type === 'skull' && e.state !== 'idle') || e.type === 'chaser';
         if (d3 > 28) C_.aiFrozen++;
         else if (lod && !busy && d3 > 12) { C_.aiLod++; e.lodAcc = (e.lodAcc || 0) + dt; if (e.lodAcc < farDt) continue; edt = e.lodAcc; e.lodAcc = 0; }
         else { C_.aiFull++; if (e.lodAcc) { edt += e.lodAcc; e.lodAcc = 0; } }

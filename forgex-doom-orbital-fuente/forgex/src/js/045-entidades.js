@@ -1,6 +1,6 @@
   // ================= ENTIDADES =================
   function spawn(type, x, y, z) {
-    st.enemies.push({ type, x, y, z, hx: x, hy: y, hz: z, hp: type === 'imp' ? 3 : type === 'skull' ? 2 : 8, cd: rnd(1.5, 3.5), wind: 0, hurt: 0,
+    st.enemies.push({ type, x, y, z, hx: x, hy: y, hz: z, hp: type === 'imp' ? 3 : type === 'skull' ? 2 : type === 'chaser' ? 4 : 8, cd: rnd(1.5, 3.5), wind: 0, hurt: 0,
       dead: false, ph: rnd(0, 6), state: 'idle', t: 0, dx: 0, dy: 0, dz: 0, hit: false, moving: false, lost: 0 });
   }
   function addItem(kind, x, y, z, extra = {}) { st.items.push(Object.assign({ kind, x, y, z, vx: 0, vy: 0, vz: 0, ground: false }, extra, { kind })); }

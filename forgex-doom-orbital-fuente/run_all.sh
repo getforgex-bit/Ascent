@@ -157,6 +157,9 @@ run_test "regression_gameplay" "node pruebas/regression_gameplay.js"
 # 19b. Sistema de chunks: índice, streaming, imagen idéntica y réplicas de los hilos
 run_test "chunks" "node pruebas/chunks.js"
 
+# 19c. Director de Ritmo y acechador
+run_test "ritmo" "node pruebas/ritmo.js"
+
 # 20. Paridad GPU vs CPU (WebGPU, modos RT 0..3)
 run_test "parity_gpu" "node pruebas/parity_gpu.js"
 

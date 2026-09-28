@@ -37,6 +37,10 @@
     skullTele: v => tone(700, 1500, .5, .1 * v, 'sawtooth'),
     skullDash: v => noise(.5, .2 * v, 400, 'bandpass', 1500),
     cacoTele: v => tone(110, 260, .9, .16 * v, 'sawtooth'),
+    chaser: small => small ? (tone(900, 1700, .35, .09, 'square'), tone(1300, 2300, .3, .05, 'square', .12))
+      : (tone(95, 60, 1.1, .16, 'sawtooth'), noise(.9, .08, 300, 'bandpass', 120)),
+    chaserBite: v => { noise(.18, .2 * v, 1200, 'bandpass', 400); tone(160, 70, .2, .12 * v, 'square'); },
+    chaserFade: v => tone(520, 90, .7, .06 * v, 'triangle'),
     shield: () => { tone(1250, 1250, .5, .1); tone(1870, 1870, .5, .06); },
     block: () => { tone(2400, 900, .2, .15, 'triangle'); noise(.12, .15, 5000, 'highpass'); },
     hurt: () => { noise(.2, .25, 500); tone(95, 50, .25, .25); },

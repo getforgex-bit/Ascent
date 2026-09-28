@@ -1,7 +1,11 @@
   // ================= RAMAS RADIALES DE EXPLORACIÓN =================
-  function decoratePlat(R, tier, threat) {
+  // Devuelve si en la plataforma pasa algo (objeto, contenedor o enemigo). Con `force` (latido de la rama) siempre pasa
+  // algo; en una región estéril puede ser solo un contenedor, a veces vacío: una razón para mirar, no un premio.
+  function decoratePlat(R, tier, threat, force = false) {
     const cx = R.x + R.w / 2, cy = R.y + R.h / 2, t = axisT(cx, cy);
-    placeContent(cx, cy, R.zt, contentAt(cx, cy, R.zt), .35);
+    const it = contentAt(cx, cy, R.zt);
+    let beat = !!it;
+    placeContent(cx, cy, R.zt, it, .35);
     if (R.w >= 2) {
       const ic = [Math.floor(cx), Math.floor(cy)];
       const corners = [[R.x, R.y], [R.x + R.w - 1, R.y], [R.x, R.y + R.h - 1], [R.x + R.w - 1, R.y + R.h - 1]].filter(([i, j]) => i !== ic[0] || j !== ic[1]);
@@ -9,9 +13,18 @@
       else if (Math.random() < .12) { const [i, j] = pick(corners); for (const b of cells[j * MW + i] || NONE) if (Math.abs(b.zt - R.zt) < .01) { b.tex = 7; b.acid = true; } worldOp(2, [i, j, R.zt]); }
     }
     const pE = { baja: .05, media: .1, alta: .2 }[threat] * (.7 + t);
-    if (R.w >= 2 && Math.random() < pE) spawn('imp', cx, cy, R.zt);
-    else if (Math.random() < pE * .3 && (tier >= 1 || t > .4)) { if (!solidAt(cx, cy, R.zt + 2.2)) spawn('caco', cx, cy, R.zt + 2.2); }
-    else if (Math.random() < pE * .2) { if (!solidAt(cx, cy, R.zt + 1.5)) spawn('skull', cx, cy, R.zt + 1.5); }
+    if (R.w >= 2 && Math.random() < pE) { spawn('imp', cx, cy, R.zt); beat = true; }
+    else if (Math.random() < pE * .3 && (tier >= 1 || t > .4)) { if (!solidAt(cx, cy, R.zt + 2.2)) { spawn('caco', cx, cy, R.zt + 2.2); beat = true; } }
+    else if (Math.random() < pE * .2) { if (!solidAt(cx, cy, R.zt + 1.5)) { spawn('skull', cx, cy, R.zt + 1.5); beat = true; } }
+    if (force && !beat) {
+      beat = true;
+      if (regionAt(cx, cy, R.zt) === 'esteril') addItem('crate', cx, cy, R.zt, { content: Math.random() < .5 ? { kind: 'ammo', ammo: 'celdas', count: randi(1, 2) } : null, open: false });
+      else if (Math.random() < .6) placeContent(cx, cy, R.zt, rollType(regionAt(cx, cy, R.zt)), .5);
+      else if (R.w >= 2) spawn('imp', cx, cy, R.zt);
+      else if (!solidAt(cx, cy, R.zt + 1.5)) spawn('skull', cx, cy, R.zt + 1.5);
+      else addItem('crate', cx, cy, R.zt, { content: null, open: false });
+    }
+    return beat;
   }
   function altar(P, hd, tier, threat) {
     const s = 4, dd = Math.max(P.w, P.h) / 2 + s / 2 + rnd(.6, 1.2), pcx = P.x + P.w / 2, pcy = P.y + P.h / 2;
@@ -40,6 +53,10 @@
     const diff = pick(['facil', 'normal', 'normal', 'dificil']), threat = pick(['baja', 'media', 'media', 'alta']);
     const tex = Math.random() < .5 ? 1 : 2;
     let P = node, heading = ang, trav = 0, hitLimit = false, ended = false, nextPOI = rnd(18, 40), zBase = node.zt; const plats = [];
+    // Latidos: una rama larga no puede ser un vacío largo. Cada 3–5 plataformas pasa algo (5–8 en las profundas o
+    // lejanas, que pueden estar más vacías pero nunca del todo).
+    const beatGap = () => depth || axisT(P.x, P.y) > .6 ? randi(5, 8) : randi(3, 5);
+    let sinceBeat = 0, gap = beatGap();
     for (let i = 0; i < 600 && trav < target; i++) {
       if (depth === 0 && plats.length && trav >= nextPOI) { // punto de interés en mitad de la rama
         nextPOI = trav + rnd(35, 80);
@@ -70,7 +87,7 @@
       const { R, th, hd } = placed; heading = hd; R.hd = hd;
       plat(R.x, R.y, R.w, R.h, R.zt, th, tex);
       trav += Math.hypot(R.x - P.x, R.y - P.y); P = R; plats.push(R);
-      decoratePlat(R, tier, threat);
+      if (decoratePlat(R, tier, threat, ++sinceBeat >= gap)) { gen.maxQuiet = Math.max(gen.maxQuiet, sinceBeat - 1); sinceBeat = 0; gap = beatGap(); }
     }
     if (!plats.length) return 0;
     gen.branches++; gen.branchPlats += plats.length; if (!depth) gen.lens.push(Math.round(trav)); if (!depth && trav < target && !ended) gen.stuck++;
@@ -148,29 +165,31 @@
     const band = Math.floor(R.zt / 25) % 2;
     plat(R.x, R.y, R.w, R.h, R.zt, th, pad ? 3 : (Math.random() < .75 ? [1, 2][band] : [2, 1][band]), pad ? PAD : 0, true);
     const afterPad = gen.afterPad;
-    Object.assign(gen, { last: R, h: R.zt, ang, r, afterPad: pad, fails: 0 }); gen.steps++;
+    Object.assign(gen, { last: R, h: R.zt, ang, r, afterPad: pad, fails: 0 }); gen.steps++; R.pad = pad; gen.route.push(R);
     if (pad) return;
     const cx = R.x + R.w / 2, cy = R.y + R.h / 2;
-    if (gen.steps > 4 && Math.random() < Math.min(.38, .1 + R.zt * .005)) spawn('imp', cx, cy, R.zt);
+    // la ruta central ya no depende solo del azar: estas tiradas quedan al 40 % y el Director de Ritmo pone el resto
+    if (gen.steps > 4 && Math.random() < Math.min(.38, .1 + R.zt * .005) * ROUTE_RANDOM) spawn('imp', cx, cy, R.zt);
     else if (Math.random() < .05) addItem('ammo', cx, cy, R.zt, { ammo: Math.random() < .7 ? 'celdas' : 'cartuchos', count: randi(1, 3) });
     // nodo de bifurcación: no siempre aparece
     if (R.zt >= gen.nodeNext && R.w >= 2 && !afterPad) {
       gen.nodeNext = R.zt + rnd(6, 10);
       if (Math.random() < .7 && makeNode(R, gen.tier) > 0) gen.tier++;
     }
-    if (gen.tier >= 2 && Math.random() < .05) { const x = cx + rnd(-3, 3), y = cy + rnd(-3, 3); if (!solidAt(x, y, R.zt + 2.5)) spawn('caco', x, y, R.zt + 2.5); }
+    if (gen.tier >= 2 && Math.random() < .05 * ROUTE_RANDOM) { const x = cx + rnd(-3, 3), y = cy + rnd(-3, 3); if (!solidAt(x, y, R.zt + 2.5)) spawn('caco', x, y, R.zt + 2.5); }
   }
   function initWorld() {
     cells = new Array(MW * MH); cellIdx = new Set(); ships = []; lights = []; worldOp(4, []);
     CHUNKS.map.clear(); CHUNKS.key = ''; CHUNKS.win = CHUNKS.stream ? chunkWindow(st.px, st.py, st.pz, 0) : null;
-    gen = { h: 0, ang: rnd(0, TAU), r: 5, dir: Math.random() < .5 ? 1 : -1, last: null, steps: 0, fails: 0, afterPad: false, tier: 0, nodeNext: rnd(4, 6),
+    gen = { route: [], maxQuiet: 0, h: 0, ang: rnd(0, TAU), r: 5, dir: Math.random() < .5 ? 1 : -1, last: null, steps: 0, fails: 0, afterPad: false, tier: 0, nodeNext: rnd(4, 6),
       regions: {}, rolls: 0, hits: 0, nodes: 0, armsTried: 0, branches: 0, branchPlats: 0, altars: 0, secrets: 0, maxReach: 0, lens: [], limits: 0, armsMade: 0, shipsMade: 0, dungeons: 0, houses: 0, linked: 0, stuck: 0, megas: 0, farlands: 0, farParts: 0 };
     plat(C - 2, C - 2, 5, 5, 0, 1.5, 1, 0, true);
-    gen.last = { x: C - 2, y: C - 2, w: 5, h: 5, zt: 0 };
+    gen.last = { x: C - 2, y: C - 2, w: 5, h: 5, zt: 0 }; gen.route.push(gen.last);
     let n = 0; while (gen.h < 34 && n++ < 400) nextStep();
   }
   function prune() {
     const minZ = Math.min(st.cp[2], st.pz) - 22;
     pruneWorld(minZ);
     st.enemies = st.enemies.filter(e => e.z > minZ); st.items = st.items.filter(i => i.z > minZ); ships = ships.filter(s => s.zf > minZ); lights = lights.filter(l => l.z > minZ);
+    gen.route = gen.route.filter(R => R.zt > minZ);
   }

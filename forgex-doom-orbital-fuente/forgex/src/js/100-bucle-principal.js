@@ -65,6 +65,7 @@
     if (fireHeld && st.cd <= 0) shoot();
     const ta = performance.now(); updateEnemies(dt); simAi += performance.now() - ta;
     updateProjectiles(dt); updateItems(dt);
+    directorTick(dt);
     st.ambT -= dt; if (st.ambT <= 0) { SFX.distant(); st.ambT = rnd(9, 22) * (1 - .5 * Math.min(1, axisT(st.px, st.py))); }
     { const bi = bandOf(st.px, st.py); if (bi > st.band) msg(`Te alejas del eje: ${BANDS[bi][2].toLowerCase()}.`, BAND_COL[bi]); st.band = bi; }
     if (st.hp < st.maxHp * .3) { st.hbT -= dt; if (st.hbT <= 0) { SFX.heart(); st.hbT = .95; } }
@@ -73,7 +74,7 @@
     if (CHUNKS.stream !== CFG.memory.chunkStreaming) setChunkStreaming(CFG.memory.chunkStreaming);
     else streamChunks(st.px, st.py, st.pz);
     let z = null; for (let q = ships.length - 1; q >= 0; q--) { const s = ships[q]; if (st.px >= s.x0 && st.px < s.x0 + s.w && st.py >= s.y0 && st.py < s.y0 + s.h && st.pz >= s.zf - .6 && st.pz < s.zf + (s.hgt || CH)) { z = s; break; } }
-    if (z && z !== st.zoneRef) { st.zone = z.name; st.zoneT = 2.6; }
+    if (z && z !== st.zoneRef) { st.zone = z.name; st.zoneT = 2.6; directorNote('discovery'); }
     st.zoneRef = z || null;
   }
   let simAi = 0;

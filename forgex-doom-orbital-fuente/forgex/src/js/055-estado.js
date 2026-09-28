@@ -11,6 +11,7 @@
     st.inv = [{ t: 'weapon', w: 'plasma' }, { t: 'shield' }, { t: 'box', ammo: 'celdas', count: 24 }];
     st.weapon = st.inv[0];
     initWorld();
+    directorReset();
     st.pa = gen.ang;
     msg('Asciende. La altura es lo único que cuenta.', '#5ff2e6');
     msg('Las ramas laterales pueden tener recursos… o nada.', '#a99cff');
